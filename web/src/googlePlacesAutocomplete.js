@@ -1,5 +1,3 @@
-import { Loader } from '@googlemaps/js-api-loader'
-
 let loaderPromise = null
 
 /**
@@ -11,11 +9,47 @@ export function ensureMapsLoaded(apiKey) {
     return Promise.reject(new Error('Missing Google Maps API key'))
   }
   if (!loaderPromise) {
-    loaderPromise = new Loader({
-      apiKey: apiKey.trim(),
-      version: 'weekly',
-      libraries: ['places'],
-    }).load()
+    loaderPromise = new Promise((resolve, reject) => {
+      if (window.google?.maps?.importLibrary) {
+        resolve(window.google.maps)
+        return
+      }
+
+      const scriptId = 'google-maps-js-sdk'
+      const existing = document.getElementById(scriptId)
+      if (existing) {
+        existing.addEventListener('load', () => resolve(window.google.maps), {
+          once: true,
+        })
+        existing.addEventListener(
+          'error',
+          () => reject(new Error('Failed loading Google Maps script')),
+          { once: true },
+        )
+        return
+      }
+
+      const callbackName = '__trippyGoogleMapsInit'
+      window[callbackName] = () => {
+        delete window[callbackName]
+        resolve(window.google.maps)
+      }
+
+      const s = document.createElement('script')
+      s.id = scriptId
+      s.async = true
+      s.defer = true
+      s.src =
+        'https://maps.googleapis.com/maps/api/js?' +
+        new URLSearchParams({
+          key: apiKey.trim(),
+          v: 'weekly',
+          libraries: 'places',
+          callback: callbackName,
+        }).toString()
+      s.onerror = () => reject(new Error('Failed loading Google Maps script'))
+      document.head.appendChild(s)
+    })
   }
   return loaderPromise
 }
