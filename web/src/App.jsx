@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { filterDestinationOptions } from './destinationOptions.js'
+import { useEffect, useRef, useState } from 'react'
+import {
+  ensureMapsLoaded,
+  fetchPlaceSuggestions,
+} from './googlePlacesAutocomplete.js'
 import './App.css'
 
 /** Replace with your real budget explanation when ready. */
@@ -35,26 +38,21 @@ function App() {
   const [destinationActiveIndex, setDestinationActiveIndex] = useState(0)
   const destinationComboboxRef = useRef(null)
   const locationInputRef = useRef(null)
+  const placesSessionRef = useRef(null)
+
+  const [destinationSuggestions, setDestinationSuggestions] = useState([])
 
   const destinationKind = normalizeDestinationKind(form.destinationKind)
-
-  const destinationMatches = useMemo(
-    () =>
-      destinationKind === 'city'
-        ? filterDestinationOptions(form.location, 15)
-        : [],
-    [form.location, destinationKind],
-  )
 
   const destinationQueryTrimmed = form.location.trim()
   const showDestinationList =
     destinationFocused &&
     !destinationListDismissed &&
     destinationQueryTrimmed.length > 0 &&
-    destinationMatches.length > 0 &&
+    destinationSuggestions.length > 0 &&
     !(
-      destinationMatches.length === 1 &&
-      destinationMatches[0] === destinationQueryTrimmed
+      destinationSuggestions.length === 1 &&
+      destinationSuggestions[0].text === destinationQueryTrimmed
     )
 
   const hasDestination = form.location.trim().length > 0
@@ -63,8 +61,58 @@ function App() {
   const showSaveStep = hasPrice
 
   useEffect(() => {
+    placesSessionRef.current = null
+  }, [destinationKind])
+
+  useEffect(() => {
     setDestinationActiveIndex(0)
-  }, [destinationMatches])
+  }, [destinationSuggestions])
+
+  useEffect(() => {
+    if (!destinationFocused) {
+      setDestinationSuggestions([])
+      return
+    }
+    const q = form.location.trim()
+    if (q.length < 2) {
+      setDestinationSuggestions([])
+      return
+    }
+    const apiKey = import.meta.env.VITE_GOOGLE_PLACES_API_KEY
+    if (!apiKey?.trim()) {
+      setDestinationSuggestions([])
+      return
+    }
+
+    let cancelled = false
+    const tid = setTimeout(async () => {
+      try {
+        await ensureMapsLoaded(apiKey)
+        if (cancelled) return
+        const { AutocompleteSessionToken } =
+          await google.maps.importLibrary('places')
+        if (!placesSessionRef.current) {
+          placesSessionRef.current = new AutocompleteSessionToken()
+        }
+        const rows = await fetchPlaceSuggestions(
+          q,
+          destinationKind,
+          placesSessionRef.current,
+        )
+        if (!cancelled) setDestinationSuggestions(rows)
+      } catch (e) {
+        if (!cancelled) {
+          console.error(e)
+          setDestinationSuggestions([])
+        }
+      }
+    }, 320)
+
+    return () => {
+      cancelled = true
+      clearTimeout(tid)
+    }
+  }, [form.location, destinationKind, destinationFocused])
 
   useEffect(() => {
     if (!showDestinationList) return
@@ -136,10 +184,14 @@ function App() {
     setForm((prev) => ({ ...prev, [name]: value }))
     if (name === 'location' || name === 'destinationKind')
       setDestinationListDismissed(false)
+    if (name === 'location' && !String(value).trim()) {
+      placesSessionRef.current = null
+    }
     setFormError('')
   }
 
   function pickDestination(value) {
+    placesSessionRef.current = null
     setDestinationListDismissed(true)
     setForm((prev) => ({ ...prev, location: value }))
     setFormError('')
@@ -151,15 +203,15 @@ function App() {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setDestinationActiveIndex((i) =>
-        Math.min(i + 1, destinationMatches.length - 1),
+        Math.min(i + 1, destinationSuggestions.length - 1),
       )
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       setDestinationActiveIndex((i) => Math.max(i - 1, 0))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      const choice = destinationMatches[destinationActiveIndex]
-      if (choice) pickDestination(choice)
+      const row = destinationSuggestions[destinationActiveIndex]
+      if (row) pickDestination(row.text)
     } else if (e.key === 'Escape') {
       e.preventDefault()
       setDestinationFocused(false)
@@ -197,6 +249,8 @@ function App() {
     setForm(initialForm)
     setFormError('')
     setDestinationListDismissed(false)
+    placesSessionRef.current = null
+    setDestinationSuggestions([])
   }
 
   return (
@@ -281,8 +335,11 @@ function App() {
                   className="trip-dest-list"
                   role="listbox"
                 >
-                  {destinationMatches.map((dest, index) => (
-                    <li key={dest} role="presentation">
+                  {destinationSuggestions.map((row, index) => (
+                    <li
+                      key={row.placeId || `${index}-${row.text}`}
+                      role="presentation"
+                    >
                       <button
                         type="button"
                         id={`destination-opt-${index}`}
@@ -294,9 +351,9 @@ function App() {
                             : 'trip-dest-option'
                         }
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => pickDestination(dest)}
+                        onClick={() => pickDestination(row.text)}
                       >
-                        {dest}
+                        {row.text}
                       </button>
                     </li>
                   ))}
