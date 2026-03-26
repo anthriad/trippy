@@ -1,6 +1,10 @@
 import "dotenv/config";
 import { ChatGoogle } from "@langchain/google";
-import { ChatPromptTemplate, SystemMessage, HumanMessage } from "@langchain/core/prompts";
+import {
+  ChatPromptTemplate,
+  SystemMessage,
+  HumanMessage,
+} from "@langchain/core/prompts";
 
 const key = process.env.GEMINI_API_KEY;
 // const USER_INPUT =  // This will be the placeholder of the input passed in from the agent API call from the frontend
@@ -66,7 +70,7 @@ const llm = new ChatGoogle({
   model: "gemini-3-flash-preview",
 });
 
-const chain = promptTemplate.pipe(model);
+const chain = promptTemplate.pipe(llm);
 const response = await chain.invoke({});
 
 /* Temporarily printing the response to the console.
