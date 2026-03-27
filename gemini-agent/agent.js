@@ -1,10 +1,13 @@
 import "dotenv/config";
 import readline from "readline";
 import { ChatGoogle } from "@langchain/google";
-import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
+import {
+  SystemMessage,
+  HumanMessage,
+  AIMessage,
+} from "@langchain/core/messages";
 
 const key = process.env.GEMINI_API_KEY;
-
 const SYSTEM_PROMPT = `
 [ROLE]
 You are Trippy, an elite, world-class travel curator and advisor. You possess the infectious energy
@@ -64,18 +67,24 @@ const llm = new ChatGoogle({
   maxOutputTokens: 8192,
 });
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
 const ask = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));
-
 const messageHistory = [new SystemMessage(SYSTEM_PROMPT)];
 
-console.log('Trippy: Aloha! I\'m Trippy, your personal travel curator. I\'m already dreaming about your next getaway! To help me build the ultimate itinerary for you, tell me: where are we dreaming of going, and what\'s the one thing you can\'t travel without?\n');
+console.log(
+  "Trippy: Aloha! I'm Trippy, your personal travel curator. I'm already dreaming about your next getaway! To help me build the ultimate itinerary for you, tell me: where are we dreaming of going, and what's the one thing you can't travel without?\n",
+);
 
 while (true) {
   const userInput = await ask("You: ");
 
   if (userInput.toLowerCase() === "exit") {
-    console.log("\nTrippy: Safe travels! Come back anytime you're ready to plan your next adventure. ✈️");
+    console.log(
+      "\nTrippy: Safe travels! Come back anytime you're ready to plan your next adventure. ✈️",
+    );
     break;
   }
 
@@ -87,8 +96,11 @@ while (true) {
   let fullResponse = "";
 
   for await (const chunk of stream) {
-    process.stdout.write(chunk.content);
-    fullResponse += chunk.content;
+    const text = Array.isArray(chunk.content)
+      ? chunk.content.map((part) => part.text ?? "").join("")
+      : (chunk.content ?? "");
+    process.stdout.write(text);
+    fullResponse += text;
   }
 
   process.stdout.write("\n\n");
