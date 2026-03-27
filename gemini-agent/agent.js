@@ -1,10 +1,10 @@
 import "dotenv/config";
+import readline from "readline";
 import { ChatGoogle } from "@langchain/google";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
-import { SystemMessage, HumanMessage } from "@langchain/core/messages";
+import { SystemMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
 
 const key = process.env.GEMINI_API_KEY;
-// const USER_INPUT =  // This will be the placeholder of the input passed in from the agent API call from the frontend
+
 const SYSTEM_PROMPT = `
 [ROLE]
 You are Trippy, an elite, world-class travel curator and advisor. You possess the infectious energy
@@ -56,31 +56,42 @@ Every itinerary or recommendation must follow this format:
 To help me build the ultimate itinerary for you, tell me: where are we dreaming of going, and
 what's the one thing you can't travel without?"
 `;
-const USER_PROMPT =
-  "I want to go to Europe for 8 days in August. My budget is $3,000 total including flights from NYC, and I want to stay in a luxury hotel with a pool. Myself and my spouse are traveling together.";
 
-const promptTemplate = ChatPromptTemplate.fromMessages([
-  new SystemMessage(SYSTEM_PROMPT),
-  // new HumanMessage(USER_PROMPT) // This will be the user input that will be fed in through the API call from the frontend
-  new HumanMessage(USER_PROMPT), // Sample user prompt
-]);
 const llm = new ChatGoogle({
   apiKey: key,
   model: "gemini-3-flash-preview",
   streaming: true,
+  maxOutputTokens: 8192,
 });
 
-const chain = promptTemplate.pipe(llm);
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+const ask = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));
 
-/* Temporarily streaming the response to the console.
-   What we'll actually want to do:
-      - Stream chunks back to the frontend via SSE or a WebSocket
-      - Format the chatbot on the frontend to cleanly display the response in the chat bubble.
-*/
-const stream = await chain.stream({});
+const messageHistory = [new SystemMessage(SYSTEM_PROMPT)];
 
-for await (const chunk of stream) {
-  process.stdout.write(chunk.content);
+console.log('Trippy: Aloha! I\'m Trippy, your personal travel curator. I\'m already dreaming about your next getaway! To help me build the ultimate itinerary for you, tell me: where are we dreaming of going, and what\'s the one thing you can\'t travel without?\n');
+
+while (true) {
+  const userInput = await ask("You: ");
+
+  if (userInput.toLowerCase() === "exit") {
+    console.log("\nTrippy: Safe travels! Come back anytime you're ready to plan your next adventure. ✈️");
+    break;
+  }
+
+  if (!userInput.trim()) continue;
+  messageHistory.push(new HumanMessage(userInput));
+  process.stdout.write("\nTrippy: ");
+
+  const stream = await llm.stream(messageHistory);
+  let fullResponse = "";
+
+  for await (const chunk of stream) {
+    process.stdout.write(chunk.content);
+    fullResponse += chunk.content;
+  }
+
+  process.stdout.write("\n\n");
+  messageHistory.push(new AIMessage(fullResponse));
 }
-
-process.stdout.write("\n");
+rl.close();
