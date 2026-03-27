@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import {
   ensureMapsLoaded,
   fetchPlaceSuggestions,
 } from './googlePlacesAutocomplete.js'
 import './App.css'
+import { useTripsStore } from './state/tripsContext.js'
+import TripResultsPage from './pages/TripResultsPage.jsx'
 
 /** Replace with your real budget explanation when ready. */
 const BUDGET_DETAILS_PLACEHOLDER =
@@ -28,7 +31,7 @@ const initialForm = {
   price: '',
 }
 
-function App() {
+function TripPlannerPage() {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('trippy-theme')
     if (saved === 'light' || saved === 'dark') return saved
@@ -37,7 +40,8 @@ function App() {
       : 'light'
   })
   const [form, setForm] = useState(initialForm)
-  const [trips, setTrips] = useState([])
+  const navigate = useNavigate()
+  const { trips, addTrip } = useTripsStore()
   const [formError, setFormError] = useState('')
   const [budgetMenuOpen, setBudgetMenuOpen] = useState(false)
   const budgetMenuRef = useRef(null)
@@ -56,7 +60,6 @@ function App() {
 
   const destinationKind = normalizeDestinationKind(form.destinationKind)
 
-  const destinationQueryTrimmed = form.location.trim()
   const activeDestinationQuery = getActiveDestinationQuery(
     activeDestinationField,
     form,
@@ -367,10 +370,19 @@ function App() {
       priceMode,
       price: priceNum,
       payload: planVariables,
+      sync: {
+        status: 'idle',
+        startedAt: null,
+        finishedAt: null,
+        error: null,
+      },
+      itinerary: null,
+      meta: null,
+      chatMessages: [],
     }
-    window.__triplyLastPlannedTrip = planVariables
     console.info('Trip plan payload:', planVariables)
-    setTrips((prev) => [trip, ...prev])
+    addTrip(trip)
+    navigate(`/trip/${trip.id}`)
     setForm(initialForm)
     setFormError('')
     setDestinationListDismissed(false)
@@ -772,26 +784,30 @@ function App() {
           <ul className="trip-list">
             {trips.map((trip) => (
               <li key={trip.id} className="trip-card">
-                <div className="trip-card-main">
-                  <strong className="trip-card-place">{trip.location}</strong>
-                  <span className="trip-card-kind">
-                    {trip.destinationKind === 'landmark' ? 'Landmark' : 'City'}
+                <Link to={`/trip/${trip.id}`} className="trip-card-link">
+                  <div className="trip-card-main">
+                    <strong className="trip-card-place">{trip.location}</strong>
+                    <span className="trip-card-kind">
+                      {trip.destinationKind === 'landmark'
+                        ? 'Landmark'
+                        : 'City'}
+                    </span>
+                    <span className="trip-card-dates">
+                      {formatDateRange(trip.startDate, trip.endDate)}
+                      {trip.dateLenient ? (
+                        <span className="trip-card-lenient"> · Flexible</span>
+                      ) : (
+                        <span className="trip-card-fixed"> · Fixed dates</span>
+                      )}
+                    </span>
+                  </div>
+                  <span className="trip-card-price">
+                    {formatMoney(trip.price)}
+                    <span className="trip-card-price-mode">
+                      {trip.priceMode === 'total' ? ' total' : ' / person'}
+                    </span>
                   </span>
-                  <span className="trip-card-dates">
-                    {formatDateRange(trip.startDate, trip.endDate)}
-                    {trip.dateLenient ? (
-                      <span className="trip-card-lenient"> · Flexible</span>
-                    ) : (
-                      <span className="trip-card-fixed"> · Fixed dates</span>
-                    )}
-                  </span>
-                </div>
-                <span className="trip-card-price">
-                  {formatMoney(trip.price)}
-                  <span className="trip-card-price-mode">
-                    {trip.priceMode === 'total' ? ' total' : ' / person'}
-                  </span>
-                </span>
+                </Link>
               </li>
             ))}
           </ul>
@@ -953,4 +969,12 @@ function getActiveDestinationQuery(activeField, form) {
   return (form.extraLocations[activeField.index] ?? '').trim()
 }
 
-export default App
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<TripPlannerPage />} />
+      <Route path="/trip/:tripId" element={<TripResultsPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  )
+}
