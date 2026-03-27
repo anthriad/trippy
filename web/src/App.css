@@ -868,6 +868,10 @@
   }
 }
 
+.trip-panel-saved {
+  padding: 22px 22px 24px;
+}
+
 .trip-list {
   list-style: none;
   margin: 0;
@@ -896,6 +900,30 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
+}
+
+.trip-card-route {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+
+.trip-card-route-label {
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.trip-card-route-value {
+  color: var(--text-h);
+  font-weight: 650;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .trip-card-place {

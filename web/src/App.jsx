@@ -21,6 +21,7 @@ function normalizeDestinationKind(value) {
 }
 
 const initialForm = {
+  fromLocation: '',
   location: '',
   extraLocations: [],
   destinationKind: DESTINATION_KIND_DEFAULT,
@@ -50,7 +51,9 @@ function TripPlannerPage() {
   const [destinationListDismissed, setDestinationListDismissed] =
     useState(false)
   const [destinationActiveIndex, setDestinationActiveIndex] = useState(0)
+  const fromComboboxRef = useRef(null)
   const destinationComboboxRef = useRef(null)
+  const fromInputRef = useRef(null)
   const locationInputRef = useRef(null)
   const placesSessionRef = useRef(null)
 
@@ -75,6 +78,7 @@ function TripPlannerPage() {
     )
 
   const hasDestination =
+    form.fromLocation.trim().length > 0 &&
     form.location.trim().length > 0 &&
     form.extraLocations.every((loc) => loc.trim().length > 0)
   const totalDestinations = 1 + form.extraLocations.length
@@ -93,11 +97,13 @@ function TripPlannerPage() {
   }, [destinationKind])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDestinationActiveIndex(0)
   }, [destinationSuggestions])
 
   useEffect(() => {
     if (!activeDestinationField) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDestinationSuggestions([])
       return
     }
@@ -122,9 +128,11 @@ function TripPlannerPage() {
         if (!placesSessionRef.current) {
           placesSessionRef.current = new AutocompleteSessionToken()
         }
+        const kindForFetch =
+          activeDestinationField?.type === 'from' ? 'city' : destinationKind
         const rows = await fetchPlaceSuggestions(
           q,
-          destinationKind,
+          kindForFetch,
           placesSessionRef.current,
         )
         if (!cancelled) setDestinationSuggestions(rows)
@@ -146,8 +154,12 @@ function TripPlannerPage() {
     if (!showDestinationList) return
     function handlePointerDown(e) {
       if (
-        destinationComboboxRef.current &&
-        !destinationComboboxRef.current.contains(e.target)
+        !(
+          (fromComboboxRef.current &&
+            fromComboboxRef.current.contains(e.target)) ||
+          (destinationComboboxRef.current &&
+            destinationComboboxRef.current.contains(e.target))
+        )
       ) {
         setActiveDestinationField(null)
       }
@@ -191,7 +203,10 @@ function TripPlannerPage() {
   }, [openDatePicker])
 
   useEffect(() => {
-    if (!hasDates && budgetMenuOpen) setBudgetMenuOpen(false)
+    if (!hasDates && budgetMenuOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setBudgetMenuOpen(false)
+    }
   }, [hasDates, budgetMenuOpen])
 
   useEffect(() => {
@@ -203,6 +218,7 @@ function TripPlannerPage() {
       form.price ||
       form.dateLenient !== false
     ) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setForm((prev) => ({
         ...prev,
         startDate: '',
@@ -217,14 +233,17 @@ function TripPlannerPage() {
   useEffect(() => {
     // If dates are incomplete, the budget step should not be shown.
     if (hasDates) return
-    if (form.price !== '') setForm((prev) => ({ ...prev, price: '' }))
+    if (form.price !== '') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setForm((prev) => ({ ...prev, price: '' }))
+    }
   }, [hasDates, form.price])
 
   function updateField(name, value) {
     setForm((prev) => ({ ...prev, [name]: value }))
-    if (name === 'location' || name === 'destinationKind')
+    if (name === 'fromLocation' || name === 'location' || name === 'destinationKind')
       setDestinationListDismissed(false)
-    if (name === 'location' && !String(value).trim()) {
+    if ((name === 'fromLocation' || name === 'location') && !String(value).trim()) {
       placesSessionRef.current = null
     }
     setFormError('')
@@ -283,6 +302,9 @@ function TripPlannerPage() {
     setDestinationListDismissed(true)
     if (!targetField) return
     setForm((prev) => {
+      if (targetField.type === 'from') {
+        return { ...prev, fromLocation: value }
+      }
       if (targetField.type === 'primary') {
         return { ...prev, location: value }
       }
@@ -291,6 +313,7 @@ function TripPlannerPage() {
       return { ...prev, extraLocations: next }
     })
     setFormError('')
+    if (targetField.type === 'from') fromInputRef.current?.focus()
     if (targetField.type === 'primary') locationInputRef.current?.focus()
   }
 
@@ -318,6 +341,7 @@ function TripPlannerPage() {
   function handleSubmit(e) {
     e.preventDefault()
     if (!showSaveStep) return
+    const fromLocation = form.fromLocation.trim()
     const location = form.location.trim()
     const extraLocations = form.extraLocations.map((loc) => loc.trim())
     if (extraLocations.some((loc) => !loc)) {
@@ -325,7 +349,13 @@ function TripPlannerPage() {
       return
     }
     const allLocations = [location, ...extraLocations]
-    if (!location || !form.startDate || !form.endDate || form.price === '') {
+    if (
+      !fromLocation ||
+      !location ||
+      !form.startDate ||
+      !form.endDate ||
+      form.price === ''
+    ) {
       setFormError('Please fill in every field.')
       return
     }
@@ -340,6 +370,7 @@ function TripPlannerPage() {
     }
     const priceMode = form.priceMode === 'total' ? 'total' : 'perPerson'
     const planVariables = {
+      origin: fromLocation,
       destinations: {
         primary: location,
         extras: extraLocations,
@@ -361,6 +392,7 @@ function TripPlannerPage() {
 
     const trip = {
       id: crypto.randomUUID(),
+      fromLocation,
       location: allLocations.join(' • '),
       locations: allLocations,
       destinationKind: planVariables.destinations.kind,
@@ -412,11 +444,85 @@ function TripPlannerPage() {
           <form className="trip-form" onSubmit={handleSubmit} noValidate>
           <div
             className="trip-field trip-dest-combobox"
+            ref={fromComboboxRef}
+          >
+            <div className="trip-dest-header-row">
+              <label className="trip-dest-label" htmlFor="fromLocation">
+                Leaving from
+              </label>
+            </div>
+            <div className="trip-dest-input-wrap">
+              <input
+                ref={fromInputRef}
+                id="fromLocation"
+                name="fromLocation"
+                type="text"
+                autoComplete="off"
+                placeholder="e.g. New York, NY"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded={
+                  showDestinationList &&
+                  isSameDestinationField(activeDestinationField, {
+                    type: 'from',
+                  })
+                }
+                aria-controls="destination-listbox-from"
+                aria-activedescendant={
+                  showDestinationList &&
+                  isSameDestinationField(activeDestinationField, {
+                    type: 'from',
+                  })
+                    ? `destination-opt-from-${destinationActiveIndex}`
+                    : undefined
+                }
+                value={form.fromLocation}
+                onChange={(e) => updateField('fromLocation', e.target.value)}
+                onFocus={() => setActiveDestinationField({ type: 'from' })}
+                onKeyDown={(e) => onDestinationKeyDown(e, { type: 'from' })}
+              />
+              {showDestinationList &&
+              isSameDestinationField(activeDestinationField, {
+                type: 'from',
+              }) ? (
+                <ul
+                  id="destination-listbox-from"
+                  className="trip-dest-list"
+                  role="listbox"
+                >
+                  {destinationSuggestions.map((row, index) => (
+                    <li
+                      key={row.placeId || `${index}-${row.text}`}
+                      role="presentation"
+                    >
+                      <button
+                        type="button"
+                        id={`destination-opt-from-${index}`}
+                        role="option"
+                        aria-selected={index === destinationActiveIndex}
+                        className={
+                          index === destinationActiveIndex
+                            ? 'trip-dest-option trip-dest-option-active'
+                            : 'trip-dest-option'
+                        }
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => pickDestination(row.text, { type: 'from' })}
+                      >
+                        {row.text}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </div>
+          <div
+            className="trip-field trip-dest-combobox"
             ref={destinationComboboxRef}
           >
             <div className="trip-dest-header-row">
               <label className="trip-dest-label" htmlFor="location">
-                Destination
+                Going to
               </label>
               <div className="trip-dest-controls">
                 <div
@@ -780,37 +886,50 @@ function TripPlannerPage() {
 
       {trips.length > 0 ? (
         <section className="trip-list-section" aria-labelledby="saved-trips">
-          <h2 id="saved-trips">Saved trips</h2>
-          <ul className="trip-list">
-            {trips.map((trip) => (
-              <li key={trip.id} className="trip-card">
-                <Link to={`/trip/${trip.id}`} className="trip-card-link">
-                  <div className="trip-card-main">
-                    <strong className="trip-card-place">{trip.location}</strong>
-                    <span className="trip-card-kind">
-                      {trip.destinationKind === 'landmark'
-                        ? 'Landmark'
-                        : 'City'}
+          <div className="trip-panel trip-panel-saved">
+            <h2 id="saved-trips">Saved trips</h2>
+            <ul className="trip-list">
+              {trips.map((trip) => (
+                <li key={trip.id} className="trip-card">
+                  <Link to={`/trip/${trip.id}`} className="trip-card-link">
+                    <div className="trip-card-main">
+                      {trip.fromLocation ? (
+                        <span className="trip-card-route">
+                          <span className="trip-card-route-label">Leaving from</span>
+                          <strong className="trip-card-route-value">
+                            {trip.fromLocation}
+                          </strong>
+                        </span>
+                      ) : null}
+                      <span className="trip-card-route">
+                        <span className="trip-card-route-label">Going to</span>
+                        <strong className="trip-card-route-value">
+                          {trip.location}
+                        </strong>
+                      </span>
+                      <span className="trip-card-kind">
+                        {trip.destinationKind === 'landmark' ? 'Landmark' : 'City'}
+                      </span>
+                      <span className="trip-card-dates">
+                        {formatDateRange(trip.startDate, trip.endDate)}
+                        {trip.dateLenient ? (
+                          <span className="trip-card-lenient"> · Flexible</span>
+                        ) : (
+                          <span className="trip-card-fixed"> · Fixed dates</span>
+                        )}
+                      </span>
+                    </div>
+                    <span className="trip-card-price">
+                      {formatMoney(trip.price)}
+                      <span className="trip-card-price-mode">
+                        {trip.priceMode === 'total' ? ' total' : ' / person'}
+                      </span>
                     </span>
-                    <span className="trip-card-dates">
-                      {formatDateRange(trip.startDate, trip.endDate)}
-                      {trip.dateLenient ? (
-                        <span className="trip-card-lenient"> · Flexible</span>
-                      ) : (
-                        <span className="trip-card-fixed"> · Fixed dates</span>
-                      )}
-                    </span>
-                  </div>
-                  <span className="trip-card-price">
-                    {formatMoney(trip.price)}
-                    <span className="trip-card-price-mode">
-                      {trip.priceMode === 'total' ? ' total' : ' / person'}
-                    </span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </section>
       ) : null}
     </div>
@@ -965,6 +1084,7 @@ function isSameDestinationField(a, b) {
 
 function getActiveDestinationQuery(activeField, form) {
   if (!activeField) return ''
+  if (activeField.type === 'from') return form.fromLocation.trim()
   if (activeField.type === 'primary') return form.location.trim()
   return (form.extraLocations[activeField.index] ?? '').trim()
 }
