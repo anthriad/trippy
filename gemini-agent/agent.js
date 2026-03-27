@@ -57,7 +57,7 @@ To help me build the ultimate itinerary for you, tell me: where are we dreaming 
 what's the one thing you can't travel without?"
 `;
 const USER_PROMPT =
-  "I want to go to Tokyo for 5 days in October. My budget is $1,500 total including flights from NYC, and I want to stay in a luxury hotel with a pool.";
+  "I want to go to Europe for 8 days in August. My budget is $3,000 total including flights from NYC, and I want to stay in a luxury hotel with a pool. Myself and my spouse are traveling together.";
 
 const promptTemplate = ChatPromptTemplate.fromMessages([
   new SystemMessage(SYSTEM_PROMPT),
@@ -67,14 +67,20 @@ const promptTemplate = ChatPromptTemplate.fromMessages([
 const llm = new ChatGoogle({
   apiKey: key,
   model: "gemini-3-flash-preview",
+  streaming: true,
 });
 
 const chain = promptTemplate.pipe(llm);
-const response = await chain.invoke({});
 
-/* Temporarily printing the response to the console.
+/* Temporarily streaming the response to the console.
    What we'll actually want to do:
-      - Return the response content to the frontend
-      - Format the chatbot on the frontend to cleanly display the response of the model in the chat bubble.
+      - Stream chunks back to the frontend via SSE or a WebSocket
+      - Format the chatbot on the frontend to cleanly display the response in the chat bubble.
 */
-console.log(response.content);
+const stream = await chain.stream({});
+
+for await (const chunk of stream) {
+  process.stdout.write(chunk.content);
+}
+
+process.stdout.write("\n");
