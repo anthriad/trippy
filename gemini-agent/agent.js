@@ -1,10 +1,7 @@
 import "dotenv/config";
 import { ChatGoogle } from "@langchain/google";
-import {
-  ChatPromptTemplate,
-  SystemMessage,
-  HumanMessage,
-} from "@langchain/core/prompts";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { SystemMessage, HumanMessage } from "@langchain/core/messages";
 
 const key = process.env.GEMINI_API_KEY;
 // const USER_INPUT =  // This will be the placeholder of the input passed in from the agent API call from the frontend
@@ -59,12 +56,14 @@ Every itinerary or recommendation must follow this format:
 To help me build the ultimate itinerary for you, tell me: where are we dreaming of going, and
 what's the one thing you can't travel without?"
 `;
+const USER_PROMPT =
+  "I want to go to Tokyo for 5 days in October. My budget is $1,500 total including flights from NYC, and I want to stay in a luxury hotel with a pool.";
 
 const promptTemplate = ChatPromptTemplate.fromMessages([
   new SystemMessage(SYSTEM_PROMPT),
-  // new HumanMessage(USER_INPUT) // This will be the user input that will be fed in through the API call from the frontend
+  // new HumanMessage(USER_PROMPT) // This will be the user input that will be fed in through the API call from the frontend
+  new HumanMessage(USER_PROMPT), // Sample user prompt
 ]);
-
 const llm = new ChatGoogle({
   apiKey: key,
   model: "gemini-3-flash-preview",
