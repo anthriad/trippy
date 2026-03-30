@@ -1,0 +1,12 @@
+{
+  "type": "module",
+  "scripts": {
+    "start": "node googleapi.js"
+  },
+  "dependencies": {
+    "@google/genai": "^1.46.0",
+    "@langchain/core": "^1.1.36",
+    "@langchain/google": "^0.1.8",
+    "dotenv": "^17.3.1"
+  }
+}
