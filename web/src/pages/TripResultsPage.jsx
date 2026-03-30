@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import ChatPanel from '../components/ChatPanel.jsx'
 import ItineraryPanel from '../components/ItineraryPanel.jsx'
-import { sendChatMessage, subscribeToTripUpdates } from '../api/tripBackendClient.js'
+import { tryExtractItineraryJson } from '../api/trippyApi.js'
+import {
+  buildChatRequestMessages,
+  sendChatMessage,
+  subscribeToTripUpdates,
+} from '../api/tripBackendClient.js'
 import { useTripsStore } from '../state/tripsContext.js'
 
 function coerceChatMessage(m) {
@@ -94,12 +99,31 @@ export default function TripResultsPage() {
     subscribeToTripUpdates({
       tripId,
       payload: trip.payload,
+      tripSnapshot: trip,
       signal: controller.signal,
       onStatus: (s) => {
         if (cancelled) return
-        if (s?.status === 'complete') setLocalStatusText('')
-        if (s?.status === 'error')
+        if (s?.status === 'complete') {
+          setLocalStatusText('')
+          updateTrip(tripId, {
+            sync: {
+              ...(tripRef.current?.sync || {}),
+              status: 'complete',
+              finishedAt: new Date().toISOString(),
+              error: null,
+            },
+          })
+        }
+        if (s?.status === 'error') {
           setLocalStatusText(s?.error || 'Backend error')
+          updateTrip(tripId, {
+            sync: {
+              ...(tripRef.current?.sync || {}),
+              status: 'error',
+              error: s?.error || 'Backend error',
+            },
+          })
+        }
       },
       onError: (e) => {
         if (cancelled) return
@@ -140,11 +164,27 @@ export default function TripResultsPage() {
 
     setLocalStatusText('Updating…')
     try {
-      await sendChatMessage({
-        tripId,
-        message: text,
+      const prior = trip.chatMessages || []
+      const wireMessages = buildChatRequestMessages(prior, text)
+      const assistant = await sendChatMessage({ messages: wireMessages })
+      const assistantMsg = coerceChatMessage({
+        role: 'assistant',
+        content: assistant.content,
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
       })
-      // Assistant response is expected to come back via subscribe updates.
+      const itineraryPatch = tryExtractItineraryJson(assistant.content)
+      updateTrip(tripId, {
+        chatMessages: [...prior, userMsg, assistantMsg],
+        ...(itineraryPatch ? { itinerary: itineraryPatch } : {}),
+        sync: {
+          ...trip.sync,
+          status: 'complete',
+          error: null,
+          finishedAt: new Date().toISOString(),
+        },
+      })
+      setLocalStatusText('')
     } catch (e) {
       setLocalStatusText(e?.message || 'Backend error')
       updateTrip(tripId, {

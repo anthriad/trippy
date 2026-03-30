@@ -1,104 +1,116 @@
-function getBackendBaseUrl() {
-  // Expected: e.g. "http://localhost:8000" or "https://api.example.com"
-  return import.meta.env.VITE_TRIP_BACKEND_URL?.trim() || ''
-}
+/**
+ * tripBackendClient.js — trip results page ↔ Trippy API glue.
+ *
+ * The trip planner UI (`TripResultsPage`) was written against a generic “job + polling”
+ * backend. The real stack has a simpler REST surface (see trippyApi.js). This module
+ * adapts those two worlds:
+ *
+ *   • subscribeToTripUpdates — one-shot “initial plan” call to POST /api/chat when the
+ *     user opens a new trip, then marks sync complete (no polling).
+ *   • sendChatMessage — turns the visible chat history into wire messages and POSTs
+ *     /api/chat for the assistant reply.
+ *
+ * Both paths require `npm run api` (Express) and GEMINI_API_KEY in backend/.env.
+ */
 
-async function requestJson(url, options) {
-  const res = await fetch(url, options)
-  const text = await res.text()
-  const parsed = text ? JSON.parse(text) : null
-  if (!res.ok) {
-    const message =
-      (parsed && (parsed.error || parsed.message)) || `HTTP ${res.status}`
-    throw new Error(message)
-  }
-  return parsed
-}
+import {
+  buildInitialTripUserMessage,
+  checkApiHealth,
+  sendChat,
+  toWireMessages,
+  tryExtractItineraryJson,
+} from './trippyApi.js'
 
 /**
- * Start a trip search and then receive incremental updates.
+ * Runs once when a trip is opened: hit Gemini with the planner payload so the chat
+ * sidebar gets an opening message and the itinerary panel may receive structured days.
  *
- * Backend transport is intentionally left generic:
- * - If `VITE_TRIP_BACKEND_URL` is set, we try polling `/trips/:id/events`.
- * - Otherwise we throw so the UI can show "backend not configured".
+ * If the API is down, surfaces a clear error. If the user already has an assistant
+ * message (e.g. returned from a previous visit), we skip duplicate work.
+ *
+ * @param {object} args
+ * @param {string} args.tripId
+ * @param {object} args.payload — `trip.payload` from the planner
+ * @param {{ chatMessages?: unknown[] } | null | undefined} args.tripSnapshot — current trip row
+ * @param {(evt: object) => void} [args.onEvent] — patch-shaped object for `applyBackendEventToTrip`
+ * @param {(s: { status: string; error?: string }) => void} [args.onStatus]
+ * @param {(e: Error) => void} [args.onError]
+ * @param {AbortSignal} [args.signal]
  */
 export async function subscribeToTripUpdates({
-  tripId,
+  tripId: _tripId,
   payload,
+  tripSnapshot,
   onEvent,
   onStatus,
   onError,
   signal,
 }) {
-  const baseUrl = getBackendBaseUrl()
-  if (!baseUrl) {
+  void _tripId
+
+  const healthy = await checkApiHealth()
+  if (!healthy) {
     const err = new Error(
-      'Backend not configured. Set `VITE_TRIP_BACKEND_URL` to enable syncing.',
+      'Trippy API is offline. From the repo root run `npm run api`, then refresh (Vite proxies /api to the API).',
     )
     onError?.(err)
     onStatus?.({ status: 'error', error: err.message })
     return
   }
 
+  const msgs = tripSnapshot?.chatMessages
+  if (Array.isArray(msgs) && msgs.some((m) => m?.role === 'assistant')) {
+    onStatus?.({ status: 'complete' })
+    return
+  }
+
   onStatus?.({ status: 'syncing' })
 
-  // 1) Optionally start the search job (if backend requires an explicit start endpoint)
-  //    This is best-effort and won't block polling if it 404s.
   try {
-    await requestJson(`${baseUrl}/trips/${tripId}/start`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ payload }),
-    })
-  } catch {
-    // If backend doesn't implement /start, we still try to poll /events.
-  }
+    const content = buildInitialTripUserMessage(payload)
+    const assistant = await sendChat([{ role: 'user', content }], { signal })
 
-  // 2) Poll events until backend indicates completion.
-  let cursor = null
-
-  while (!signal?.aborted) {
-    try {
-      const url = `${baseUrl}/trips/${tripId}/events${
-        cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
-      }`
-      const data = await requestJson(url, { method: 'GET' })
-
-      const events = Array.isArray(data?.events) ? data.events : []
-      for (const evt of events) onEvent?.(evt)
-
-      const nextCursor = data?.nextCursor ?? null
-      cursor = nextCursor
-
-      if (data?.done === true) {
-        onStatus?.({ status: 'complete' })
-        return
-      }
-
-      // If backend doesn't provide done, keep polling.
-      await new Promise((r) => setTimeout(r, 1500))
-    } catch (e) {
-      onError?.(e)
-      onStatus?.({ status: 'error', error: e?.message || String(e) })
-      return
+    const itinerary = tryExtractItineraryJson(assistant.content)
+    /** @type {Record<string, unknown>} */
+    const evt = {
+      message: {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: assistant.content,
+        timestamp: new Date().toISOString(),
+      },
     }
+    if (itinerary) evt.itinerary = itinerary
+
+    onEvent?.(evt)
+    onStatus?.({ status: 'complete' })
+  } catch (e) {
+    const err = e instanceof Error ? e : new Error(String(e))
+    onError?.(err)
+    onStatus?.({ status: 'error', error: err.message })
   }
 }
 
-export async function sendChatMessage({ tripId, message, signal }) {
-  const baseUrl = getBackendBaseUrl()
-  if (!baseUrl) {
-    throw new Error(
-      'Backend not configured. Set `VITE_TRIP_BACKEND_URL` to send messages.',
-    )
-  }
-
-  // Backend schema is intentionally generic; adapt to your server later.
-  return requestJson(`${baseUrl}/trips/${tripId}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
-    signal,
-  })
+/**
+ * Sends the full conversation (including the latest user turn) to POST /api/chat.
+ *
+ * @param {object} args
+ * @param {Array<{ role?: string; content?: unknown }>} args.messages — wire-ready history,
+ *   **must** end with `{ role: 'user', content: '...' }` (already normalized strings).
+ * @param {AbortSignal} [args.signal]
+ * @returns {Promise<{ role: string; content: string }>}
+ */
+export async function sendChatMessage({ messages, signal }) {
+  return sendChat(messages, { signal })
 }
 
+/**
+ * Convenience: build the message array the backend expects from UI chat state + new text.
+ *
+ * @param {Array<{ role?: string; content?: unknown }>} priorChatMessages
+ * @param {string} userText
+ * @returns {{ role: 'user' | 'assistant'; content: string }[]}
+ */
+export function buildChatRequestMessages(priorChatMessages, userText) {
+  return [...toWireMessages(priorChatMessages), { role: 'user', content: userText }]
+}

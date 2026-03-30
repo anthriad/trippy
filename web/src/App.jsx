@@ -380,7 +380,6 @@ function TripPlannerPage() {
       meta: null,
       chatMessages: [],
     }
-    console.info('Trip plan payload:', planVariables)
     addTrip(trip)
     navigate(`/trip/${trip.id}`)
     setForm(initialForm)
