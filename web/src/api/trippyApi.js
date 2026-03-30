@@ -2,13 +2,12 @@
  * trippyApi.js — browser client for the Trippy Express API (backend/server.js).
  *
  * Flow:
- *   React → fetch('/api/...') → Express → LangChain ChatGoogle → Gemini
+ *   React → 5('/api/...') → Express → LangChain ChatGoogle → Gemini
  *
  * Development:
- *   Run `npm run api` at the repo root (default http://localhost:3001).
- *   Run `npm run dev` in web/ (Vite, usually :5173). vite.config.js proxies
- *   `/api` to the same port as the API so the browser can use relative URLs
- *   and avoid CORS issues.
+ *   From the repo root run `npm run dev` to start the API and Vite together, or run
+ *   `npm run api` in one terminal and `npm run dev` inside web/ in another.
+ *   vite.config.js proxies `/api` to the port in backend/.env (default 3001 in server.js).
  *
  * Production:
  *   Set VITE_API_URL to your deployed API origin (no trailing slash), e.g.
@@ -48,30 +47,49 @@ async function readJsonResponse(res) {
     }
   }
   if (!res.ok) {
-    const msg =
-      (body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
+    const fromJson =
+      body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
         ? body.error
-        : null) || `HTTP ${res.status}`
+        : null
+    let msg = fromJson
+    if (!msg && [502, 503, 504].includes(res.status)) {
+      msg =
+        'Cannot reach the Trippy API (often the server is not running or the port does not match). ' +
+        'From the repo root run `npm run dev` to start the web app and API together, ' +
+        'or in one terminal run `npm run api` and in another `npm run dev` inside web/. ' +
+        'If you changed PORT in backend/.env, restart the Vite dev server.'
+    }
+    if (!msg) msg = `HTTP ${res.status}`
     throw new Error(msg)
   }
   return body
 }
 
 /**
- * GET /api/health
- * Confirms the Node process is running; does not call Gemini (no API key cost).
+ * GET /api/health — process up plus whether GEMINI_API_KEY is set (no Gemini call).
  *
+ * @returns {Promise<{ up: boolean; geminiConfigured: boolean }>}
+ */
+export async function fetchApiHealth() {
+  try {
+    const res = await fetch(apiUrl('/api/health'))
+    if (!res.ok) return { up: false, geminiConfigured: false }
+    const data = await readJsonResponse(res)
+    return {
+      up: data?.ok === true,
+      geminiConfigured: data?.geminiConfigured === true,
+    }
+  } catch {
+    return { up: false, geminiConfigured: false }
+  }
+}
+
+/**
  * @returns {Promise<boolean>}
  */
 export async function checkApiHealth() {
-  try {
-    const res = await fetch(apiUrl('/api/health'))
-    if (!res.ok) return false
-    const data = await readJsonResponse(res)
-    return data?.ok === true
-  } catch {
-    return false
-  }
+  const h = await fetchApiHealth()
+  return h.up
 }
 
 /**
@@ -126,13 +144,18 @@ export async function streamChat(messages, handlers = {}) {
   })
 
   if (!res.ok) {
-    let msg = `HTTP ${res.status}`
+    let msg = ''
     try {
       const errBody = await res.json()
       if (errBody?.error) msg = errBody.error
     } catch {
       /* ignore */
     }
+    if (!msg && [502, 503, 504].includes(res.status)) {
+      msg =
+        'Cannot reach the Trippy API. From the repo root run `npm run dev` or run `npm run api` in a second terminal.'
+    }
+    if (!msg) msg = `HTTP ${res.status}`
     const err = new Error(msg)
     onError?.(err)
     throw err

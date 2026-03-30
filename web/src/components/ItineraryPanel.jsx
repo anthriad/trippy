@@ -56,18 +56,41 @@ function renderItinerary(itinerary) {
   )
 }
 
-export default function ItineraryPanel({ itinerary, meta }) {
+export default function ItineraryPanel({
+  itinerary,
+  /** True when showing a client-built outline before Trippy returns structured JSON */
+  isSkeletonDraft = false,
+  meta,
+  /** Primary label for this saved trip (e.g. city or combined destinations) */
+  destinationLabel,
+  /** Optional date range text */
+  datesSummary,
+}) {
   return (
     <div className="trip-results-itinerary-panel">
       <div className="trip-results-itinerary-header">
         <div>
           <strong className="trip-results-section-title">Itinerary</strong>
+          {destinationLabel ? (
+            <p className="trip-results-itinerary-destination">{destinationLabel}</p>
+          ) : null}
+          {datesSummary ? (
+            <p className="trip-results-itinerary-dates">{datesSummary}</p>
+          ) : null}
         </div>
       </div>
 
+      {isSkeletonDraft ? (
+        <p className="trip-results-itinerary-draft-banner" role="status">
+          Draft outline from your trip details — Trippy will refine this when the plan syncs or when
+          you chat.
+        </p>
+      ) : null}
+
       {!itinerary ? (
         <div className="trip-results-itinerary-empty">
-          Initial itinerary will appear when the backend finishes the search.
+          Your day-by-day plan for this saved trip will show here once Trippy generates it (first
+          load or after you ask for changes in the agent chat).
         </div>
       ) : null}
 

@@ -20,6 +20,14 @@ export default function ChatPanel({
   onSend,
   disabled,
   statusText,
+  /** e.g. missing GEMINI_API_KEY — shown under the tagline */
+  configWarning,
+  /** Main heading (e.g. "Trippy") */
+  title = 'Trippy',
+  /** One line under the title, e.g. "AI travel agent" */
+  tagline = 'AI travel agent',
+  /** Shown when there are no messages yet */
+  emptyHint = 'Ask Trippy to refine the plan, swap activities, or explain options for this trip.',
 }) {
   const [draft, setDraft] = useState('')
   const listRef = useRef(null)
@@ -47,7 +55,18 @@ export default function ChatPanel({
     <div className="trip-results-chat-panel">
       <div className="trip-results-chat-header">
         <div>
-          <strong className="trip-results-chat-title">Chat</strong>
+          <div className="trip-results-chat-title-row">
+            <strong className="trip-results-chat-title">{title}</strong>
+            <span className="trip-results-agent-badge" aria-hidden>
+              Agent
+            </span>
+          </div>
+          <div className="trip-results-chat-tagline">{tagline}</div>
+          {configWarning ? (
+            <div className="trip-results-chat-config-warn" role="alert">
+              {configWarning}
+            </div>
+          ) : null}
           {statusText ? (
             <div className="trip-results-chat-subtitle">{statusText}</div>
           ) : null}
@@ -56,9 +75,7 @@ export default function ChatPanel({
 
       <div className="trip-results-chat-messages" ref={listRef} role="log">
         {normalizedMessages.length === 0 ? (
-          <div className="trip-results-chat-empty">
-            No messages yet. Ask for updates or edits to your plan.
-          </div>
+          <div className="trip-results-chat-empty">{emptyHint}</div>
         ) : null}
 
         {normalizedMessages.map((m) => {
@@ -84,7 +101,9 @@ export default function ChatPanel({
           className="trip-results-chat-input"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={disabled ? 'Loading…' : 'Type a message…'}
+          placeholder={
+            disabled ? 'Waiting for reply…' : 'Message Trippy…'
+          }
           disabled={disabled}
         />
         <button className="trip-results-chat-send" type="submit" disabled={disabled}>

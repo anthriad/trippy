@@ -65,7 +65,10 @@ app.use(express.json({ limit: "1mb" }));
 app.get("/api/health", (_req, res) => {
   // _req: we don't read the request; underscore by convention means "unused".
   // res.json sends JSON with Content-Type: application/json and ends the response.
-  res.json({ ok: true });
+  res.json({
+    ok: true,
+    geminiConfigured: Boolean(String(process.env.GEMINI_API_KEY || "").trim()),
+  });
 });
 
 /**

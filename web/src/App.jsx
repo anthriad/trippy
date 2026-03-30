@@ -43,6 +43,8 @@ function TripPlannerPage() {
   const navigate = useNavigate()
   const { trips, addTrip } = useTripsStore()
   const [formError, setFormError] = useState('')
+  const [destinationAutocompleteError, setDestinationAutocompleteError] =
+    useState('')
   const [budgetMenuOpen, setBudgetMenuOpen] = useState(false)
   const budgetMenuRef = useRef(null)
 
@@ -99,28 +101,39 @@ function TripPlannerPage() {
   useEffect(() => {
     if (!activeDestinationField) {
       setDestinationSuggestions([])
+      setDestinationAutocompleteError('')
       return
     }
     const q = activeDestinationQuery
     if (q.length < 2) {
       setDestinationSuggestions([])
+      setDestinationAutocompleteError('')
       return
     }
     const apiKey = import.meta.env.VITE_GOOGLE_PLACES_API_KEY
     if (!apiKey?.trim()) {
       setDestinationSuggestions([])
+      setDestinationAutocompleteError(
+        'Google Places key missing. Set `VITE_GOOGLE_PLACES_API_KEY` (or `Google_Places_API_Key.env` in web/).',
+      )
       return
     }
 
     let cancelled = false
     const tid = setTimeout(async () => {
       try {
+        setDestinationAutocompleteError('')
         await ensureMapsLoaded(apiKey)
         if (cancelled) return
-        const { AutocompleteSessionToken } =
-          await google.maps.importLibrary('places')
+        // Session tokens are optional but recommended by Google so related
+        // autocomplete requests are grouped/billed efficiently.
+        // We support both the new importLibrary API and the classic namespace.
         if (!placesSessionRef.current) {
-          placesSessionRef.current = new AutocompleteSessionToken()
+          const placesLib = await google.maps.importLibrary('places')
+          const TokenCtor =
+            placesLib?.AutocompleteSessionToken ||
+            google.maps.places?.AutocompleteSessionToken
+          placesSessionRef.current = TokenCtor ? new TokenCtor() : null
         }
         const rows = await fetchPlaceSuggestions(
           q,
@@ -132,6 +145,9 @@ function TripPlannerPage() {
         if (!cancelled) {
           console.error(e)
           setDestinationSuggestions([])
+          setDestinationAutocompleteError(
+            e instanceof Error ? e.message : 'Google Places autocomplete failed',
+          )
         }
       }
     }, 320)
@@ -493,7 +509,10 @@ function TripPlannerPage() {
                     : undefined
                 }
                 value={form.location}
-                onChange={(e) => updateField('location', e.target.value)}
+                onChange={(e) => {
+                  setDestinationAutocompleteError('')
+                  updateField('location', e.target.value)
+                }}
                 onFocus={() => setActiveDestinationField({ type: 'primary' })}
                 onKeyDown={(e) => onDestinationKeyDown(e, { type: 'primary' })}
               />
@@ -533,6 +552,11 @@ function TripPlannerPage() {
                 </ul>
               ) : null}
             </div>
+            {destinationAutocompleteError ? (
+              <p className="trip-form-error" role="status">
+                {destinationAutocompleteError}
+              </p>
+            ) : null}
             {form.extraLocations.map((loc, idx) => (
               <div className="trip-extra-destination-row" key={`extra-${idx}`}>
                 <div className="trip-extra-destination-input-wrap">
@@ -564,7 +588,10 @@ function TripPlannerPage() {
                         : undefined
                     }
                     value={loc}
-                    onChange={(e) => updateExtraLocation(idx, e.target.value)}
+                    onChange={(e) => {
+                      setDestinationAutocompleteError('')
+                      updateExtraLocation(idx, e.target.value)
+                    }}
                     onFocus={() =>
                       setActiveDestinationField({ type: 'extra', index: idx })
                     }

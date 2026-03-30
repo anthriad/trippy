@@ -1049,8 +1049,45 @@
   margin-bottom: 10px;
 }
 
+.trip-results-chat-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .trip-results-chat-title {
   font-size: 1.05rem;
+}
+
+.trip-results-agent-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.trip-results-chat-tagline {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: var(--text);
+  opacity: 0.92;
+}
+
+.trip-results-chat-config-warn {
+  margin-top: 8px;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--text-h);
+  border-radius: 10px;
+  border: 1px solid rgba(251, 191, 36, 0.5);
+  background: rgba(251, 191, 36, 0.12);
 }
 
 .trip-results-chat-subtitle {
@@ -1159,6 +1196,33 @@
 
 .trip-results-section-title {
   font-size: 1.05rem;
+}
+
+.trip-results-itinerary-destination {
+  margin: 6px 0 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--text-h);
+  line-height: 1.35;
+}
+
+.trip-results-itinerary-dates {
+  margin: 4px 0 0;
+  font-size: 0.82rem;
+  color: var(--text);
+  opacity: 0.95;
+}
+
+.trip-results-itinerary-draft-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text);
+  opacity: 0.92;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .trip-results-itinerary-empty {

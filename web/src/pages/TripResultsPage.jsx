@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import ChatPanel from '../components/ChatPanel.jsx'
 import ItineraryPanel from '../components/ItineraryPanel.jsx'
-import { tryExtractItineraryJson } from '../api/trippyApi.js'
+import { fetchApiHealth, tryExtractItineraryJson } from '../api/trippyApi.js'
 import {
   buildChatRequestMessages,
   sendChatMessage,
   subscribeToTripUpdates,
 } from '../api/tripBackendClient.js'
 import { useTripsStore } from '../state/tripsContext.js'
+import { buildSkeletonItineraryFromTrip } from '../lib/skeletonItinerary.js'
 
 function coerceChatMessage(m) {
   if (!m) return null
@@ -62,10 +63,35 @@ export default function TripResultsPage() {
   const trip = getTripById(tripId)
   const tripRef = useRef(trip)
   const [localStatusText, setLocalStatusText] = useState('')
+  const [chatConfigWarning, setChatConfigWarning] = useState('')
 
   useEffect(() => {
     tripRef.current = trip
   }, [trip])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const h = await fetchApiHealth()
+      if (cancelled) return
+      if (!h.up) {
+        setChatConfigWarning(
+          'Trippy API is offline. From the repo root run `npm run dev` (web + API) or keep `npm run api` running in a second terminal while you use `npm run dev` in web/.',
+        )
+        return
+      }
+      if (!h.geminiConfigured) {
+        setChatConfigWarning(
+          'Set GEMINI_API_KEY in backend/.env (Google AI Studio), save, restart `npm run api`, then refresh this page.',
+        )
+        return
+      }
+      setChatConfigWarning('')
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const headerSummary = useMemo(() => {
     if (!trip) return ''
@@ -73,6 +99,21 @@ export default function TripResultsPage() {
       trip.startDate && trip.endDate ? `${trip.startDate} -> ${trip.endDate}` : ''
     return [trip.location, dates].filter(Boolean).join(' · ')
   }, [trip])
+
+  const itineraryDatesSummary = useMemo(() => {
+    if (!trip) return ''
+    const start = trip.startDate || trip?.payload?.dates?.start
+    const end = trip.endDate || trip?.payload?.dates?.end
+    if (!start || !end) return ''
+    return `${start} → ${end}`
+  }, [trip])
+
+  const skeletonItinerary = useMemo(
+    () => (trip ? buildSkeletonItineraryFromTrip(trip) : null),
+    [trip],
+  )
+  const displayItinerary = trip?.itinerary ?? skeletonItinerary
+  const isSkeletonDraft = Boolean(trip && !trip.itinerary && skeletonItinerary)
 
   useEffect(() => {
     if (!trip) return
@@ -95,6 +136,7 @@ export default function TripResultsPage() {
         error: null,
       },
     })
+    setLocalStatusText('Trippy is drafting your plan…')
 
     subscribeToTripUpdates({
       tripId,
@@ -213,8 +255,8 @@ export default function TripResultsPage() {
   }
 
   const syncStatus = trip?.sync?.status
-  const shouldDisableChat =
-    syncStatus === 'syncing' && (trip?.chatMessages?.length || 0) === 0
+  // Only block input while a user message is in flight (not during initial plan generation).
+  const shouldDisableChat = localStatusText === 'Updating…'
   return (
     <div className="trip-results-page">
       <div className="trip-results-topbar">
@@ -242,12 +284,22 @@ export default function TripResultsPage() {
             messages={trip.chatMessages || []}
             onSend={handleSend}
             disabled={shouldDisableChat}
+            configWarning={chatConfigWarning || undefined}
             statusText={localStatusText || undefined}
+            title="Trippy"
+            tagline="AI travel agent"
+            emptyHint="Chat with Trippy about this saved trip — refine stops, pacing, budget, or vibe. The itinerary on the right updates when Trippy returns a structured plan."
           />
         </aside>
 
         <main className="trip-results-right">
-          <ItineraryPanel itinerary={trip.itinerary} meta={trip.meta} />
+          <ItineraryPanel
+            itinerary={displayItinerary}
+            isSkeletonDraft={isSkeletonDraft}
+            meta={trip.meta}
+            destinationLabel={trip.location || 'Saved trip'}
+            datesSummary={itineraryDatesSummary}
+          />
         </main>
       </div>
     </div>
