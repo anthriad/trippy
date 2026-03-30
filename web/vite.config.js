@@ -17,7 +17,12 @@ function resolveGooglePlacesApiKey(mode) {
   return ''
 }
 
-// https://vite.dev/config/
+/**
+ * Vite config — dev server + React + Google Places key injection.
+ *
+ * proxy: Requests to /api/* go to the Express API (default http://localhost:3001;
+ * override with PORT in backend/.env).
+ */
 export default defineConfig(({ mode }) => {
   const googlePlacesKey = resolveGooglePlacesApiKey(mode)
   return {
@@ -29,7 +34,7 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api': {
-          target: 'http://localhost:3000',
+          target: 'http://localhost:3001',
           changeOrigin: true,
         },
       },

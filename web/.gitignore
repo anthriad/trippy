@@ -27,6 +27,3 @@ Google_Places_API_Key.env
 *.njsproj
 *.sln
 *.sw?
-
-# Local environment variables
-.env
