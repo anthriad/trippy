@@ -26,5 +26,13 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_GOOGLE_PLACES_API_KEY':
         JSON.stringify(googlePlacesKey),
     },
+    server: {
+      proxy: {
+        '/api': {
+          target: 'http://localhost:3000',
+          changeOrigin: true,
+        },
+      },
+    },
   }
 })
