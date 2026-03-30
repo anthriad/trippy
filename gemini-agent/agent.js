@@ -1,109 +1,101 @@
-import "dotenv/config";
+/**
+ * agent.js — TERMINAL (CLI) INTERFACE TO TRIPPY
+ *
+ * This is NOT the HTTP API. It runs in your terminal:
+ * - Reads lines you type (stdin).
+ * - Sends them to Gemini via LangChain (same brain as the API in trippyCore.js).
+ * - Prints streaming text to the terminal (stdout).
+ *
+ * The web frontend does NOT use this file; it uses backend/server.js instead.
+ */
+
+// All `import` statements must stay at the top (ES modules rule in Node).
+
+// dotenv loads environment variables from .env files into process.env (where GEMINI_API_KEY is read).
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// Node's readline lets us prompt "You: " and wait for keyboard input line by line.
 import readline from "readline";
-import { ChatGoogle } from "@langchain/google";
+
+// HumanMessage = one user turn. AIMessage = one model turn. (System prompt is inside trippyCore.)
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+
+// Shared factory + helpers: one source of truth with the API.
 import {
-  SystemMessage,
-  HumanMessage,
-  AIMessage,
-} from "@langchain/core/messages";
+  initialMessageHistory, // Starting state: [system prompt].
+  createTrippyLlm, // Builds ChatGoogle with your API key.
+  chunkText, // Normalizes stream chunks to plain text.
+} from "./trippyCore.js";
 
-const key = process.env.GEMINI_API_KEY;
-const SYSTEM_PROMPT = `
-[ROLE]
-You are Trippy, an elite, world-class travel curator and advisor. You possess the infectious energy
-of a seasoned explorer, the deep knowledge of a local historian, and the calming presence of a
-luxury concierge. You don't just "book trips"—you craft bespoke experiences based on the user's
-soul, budget, and logistical needs.
+// import.meta.url is the absolute URL of *this* file; convert to a filesystem path.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Load backend/.env first so the same key file as the API works when you run `npm run agent` from the repo root.
+dotenv.config({ path: path.join(__dirname, "../backend/.env") });
+// Then load a .env in the current working directory if present (optional second source).
+dotenv.config();
 
-[PERSONA & TONE]
-Vibe: Enthusiastic and fun, yet grounded and organized.
-Communication: Use vibrant, evocative language (e.g., "hidden gems," "breathtaking vistas," "seamless transitions").
-Stance: You are a collaborative partner. If a user's request is logistically impossible or out of
-budget, gently guide them toward a "smarter" alternative without losing your excitement.
+// Create ONE model client for the whole CLI session (reused each question).
+// streaming: true ⇒ llm.stream(...) yields partial pieces as they arrive.
+const llm = createTrippyLlm({ streaming: true });
 
-[OPERATIONAL WORKFLOW]
-Intake & Discovery: If the user provides vague input, ask targeted, friendly questions to fill the gaps regarding:
-  - Party size (adults/children/pets)
-  - Destination/Vibe
-  - Dates/Duration
-  - Budget (Economy $, Mid-range $$, Luxury $$$)
-  - Transport method
-  - "Must-have" amenities
-
-Research & API Integration: When utilizing research tools or the Google Places API, apply the following filters:
-  - Social Proof: Prioritize locations with a 4.2+ star rating and at least 100 reviews.
-    Highlight those with near-perfect ratings but fewer reviews as "Local Secrets."
-  - Recency: Never suggest businesses marked as "Temporarily Closed."
-  - Radius Logic: If the user is walking/using transit, keep suggestions within a 3-mile radius.
-    If they have a car, expand to 15+ miles for better value.
-  - Synthesis: Cross-reference all data with the user's specific constraints
-    (e.g., don't suggest a steakhouse to a vegan, or a rooftop bar for a family with toddlers).
-
-[RESPONSE STRUCTURE]
-Every itinerary or recommendation must follow this format:
-  - The Vibe Check: A one-sentence opening on why this selection fits the user's personality.
-  - The Recommendation: [Name of Place/Activity] ⭐ [Rating].
-  - The "Atlas Tip": A specific, helpful detail found in reviews or local lore
-    (e.g., "The north entrance has shorter lines at 10 AM!").
-  - Logistics & Price: Include a "Getting Around" section and clear price brackets ($, $$, $$$).
-
-[CONSTRAINTS & GUARDRAILS]
-  - Seasonality: Do not suggest seasonal activities that are closed during the user's travel dates
-    (e.g., no skiing in July).
-  - Budget Integrity: Strictly adhere to the user's budget. If a destination is naturally expensive
-    (e.g., Iceland or NYC), provide "smart-spend" tips to keep them within their limit.
-  - Accuracy: If you are unsure about a specific detail, use your search tool to verify rather than hallucinating.
-
-[INITIAL GREETING]
-"Aloha! I'm Trippy, your personal travel curator. I'm already dreaming about your next getaway!
-To help me build the ultimate itinerary for you, tell me: where are we dreaming of going, and
-what's the one thing you can't travel without?"
-`;
-
-const llm = new ChatGoogle({
-  apiKey: key,
-  model: "gemini-3-flash-preview",
-  streaming: true,
-  maxOutputTokens: 8192,
-});
-
+// readline needs both input stream (keyboard) and output stream (terminal).
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
 });
-const ask = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));
-const messageHistory = [new SystemMessage(SYSTEM_PROMPT)];
 
+// Wraps rl.question in a Promise so we can use async/await in the loop below.
+// resolve is called with whatever string the user typed when they press Enter.
+const ask = (prompt) => new Promise((resolve) => rl.question(prompt, resolve));
+
+// Conversation memory for Gemini: system message + every past user + assistant turn.
+const messageHistory = initialMessageHistory();
+
+// Initial greeting in the terminal (static copy; not generated by the model this turn).
 console.log(
   "Trippy: Aloha! I'm Trippy, your personal travel curator. I'm already dreaming about your next getaway! To help me build the ultimate itinerary for you, tell me: where are we dreaming of going, and what's the one thing you can't travel without?\n",
 );
 
+// Infinite loop until user types "exit".
 while (true) {
+  // Wait for the user to type a line after the "You: " prompt.
   const userInput = await ask("You: ");
 
+  // Graceful shutdown command (case-insensitive).
   if (userInput.toLowerCase() === "exit") {
     console.log(
       "\nTrippy: Safe travels! Come back anytime you're ready to plan your next adventure. ✈️",
     );
-    break;
+    break; // Exits the while loop.
   }
 
+  // Skip empty lines without calling the API (saves quota and avoids useless requests).
   if (!userInput.trim()) continue;
+
+  // Append latest user text to history BEFORE calling the model (model sees full thread).
   messageHistory.push(new HumanMessage(userInput));
+
+  // Print assistant prefix without a trailing newline so streamed tokens appear on the same line.
   process.stdout.write("\nTrippy: ");
 
+  // Ask Gemini for a streamed reply given every message in messageHistory.
   const stream = await llm.stream(messageHistory);
   let fullResponse = "";
 
+  // Async iteration: each "chunk" is a piece of the answer as it arrives from Google.
   for await (const chunk of stream) {
-    const text = Array.isArray(chunk.content)
-      ? chunk.content.map((part) => part.text ?? "").join("")
-      : (chunk.content ?? "");
-    process.stdout.write(text);
-    fullResponse += text;
+    const text = chunkText(chunk);
+    process.stdout.write(text); // Show token-by-token in terminal.
+    fullResponse += text; // Accumulate full answer for history.
   }
 
   process.stdout.write("\n\n");
+
+  // Store assistant reply so the NEXT user message has full context (multi-turn chat).
   messageHistory.push(new AIMessage(fullResponse));
 }
+
+// Close readline cleanly (releases stdin listener).
 rl.close();
