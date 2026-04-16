@@ -9,8 +9,6 @@ import {
 } from '../api/tripBackendClient.js'
 import { useTripsStore } from '../state/tripsContext.js'
 
-const STALE_SYNC_MS = 15000
-
 function coerceChatMessage(m) {
   if (!m) return null
   const role = m.role === 'user' ? 'user' : 'assistant'
@@ -115,16 +113,7 @@ export default function TripResultsPage() {
     if (!trip) return
 
     const status = trip?.sync?.status || 'idle'
-    if (status === 'syncing') {
-      const startedAt = trip?.sync?.startedAt
-        ? new Date(trip.sync.startedAt).getTime()
-        : 0
-      const isStale = !startedAt || Date.now() - startedAt > STALE_SYNC_MS
-
-      // If a previous request was interrupted (refresh/navigation), recover instead
-      // of leaving the trip permanently stuck in "Plan being generated...".
-      if (!isStale) return
-    }
+    if (status === 'syncing') return
     if (status === 'complete') return
     if (status === 'error') {
       // allow resync on explicit user request; not automatic
