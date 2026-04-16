@@ -878,6 +878,7 @@
 }
 
 .trip-card {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -889,6 +890,43 @@
   box-shadow: var(--shadow);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+}
+
+.trip-card-delete {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 18px;
+  height: 18px;
+  border-radius: 7px;
+  border: 1px solid rgba(239, 68, 68, 0.55);
+  background: rgba(239, 68, 68, 0.18);
+  color: rgba(254, 226, 226, 1);
+  cursor: pointer;
+  line-height: 1;
+  font-size: 11px;
+  font-weight: 750;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    transform 0.15s,
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.trip-card-delete:hover {
+  transform: translateY(-1px);
+  background: rgba(239, 68, 68, 0.26);
+  border-color: rgba(239, 68, 68, 0.8);
+}
+
+.trip-card-delete:focus-visible {
+  outline: 2px solid rgba(239, 68, 68, 0.8);
+  outline-offset: 2px;
 }
 
 .trip-card-main {

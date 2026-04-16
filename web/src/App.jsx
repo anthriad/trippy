@@ -5,6 +5,7 @@ import {
   fetchPlaceSuggestions,
 } from './googlePlacesAutocomplete.js'
 import './App.css'
+import { buildInitialTripUserMessage } from './api/trippyApi.js'
 import { useTripsStore } from './state/tripsContext.js'
 import TripResultsPage from './pages/TripResultsPage.jsx'
 
@@ -41,7 +42,7 @@ function TripPlannerPage() {
   })
   const [form, setForm] = useState(initialForm)
   const navigate = useNavigate()
-  const { trips, addTrip } = useTripsStore()
+  const { trips, addTrip, deleteTrip } = useTripsStore()
   const [formError, setFormError] = useState('')
   const [destinationAutocompleteError, setDestinationAutocompleteError] =
     useState('')
@@ -374,6 +375,13 @@ function TripPlannerPage() {
       },
       createdAt: new Date().toISOString(),
     }
+    const initialPromptMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: buildInitialTripUserMessage(planVariables),
+      timestamp: new Date().toISOString(),
+      isPlannerSeed: true,
+    }
 
     const trip = {
       id: crypto.randomUUID(),
@@ -394,7 +402,7 @@ function TripPlannerPage() {
       },
       itinerary: null,
       meta: null,
-      chatMessages: [],
+      chatMessages: [initialPromptMessage],
     }
     addTrip(trip)
     navigate(`/trip/${trip.id}`)
@@ -834,6 +842,19 @@ function TripPlannerPage() {
                     </span>
                   </span>
                 </Link>
+                <button
+                  type="button"
+                  className="trip-card-delete"
+                  aria-label={`Delete saved trip ${trip.location}`}
+                  title="Delete trip"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    deleteTrip?.(trip.id)
+                  }}
+                >
+                  ×
+                </button>
               </li>
             ))}
           </ul>

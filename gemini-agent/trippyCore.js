@@ -101,13 +101,152 @@ export function createTrippyLlm(options = {}) {
   // streaming !== false means: default is streaming ON unless you pass { streaming: false }.
   const streaming = options.streaming !== false;
 
+  const model =
+    options.model?.trim() ||
+    process.env.GEMINI_MODEL?.trim() ||
+    "gemini-2.5-flash";
+
   // This object knows how to call Google's Gemini API using your key.
   return new ChatGoogle({
     apiKey: key,
-    model: "gemini-3-flash-preview", // Gemini model id on Google's side.
+    model, // Override with GEMINI_MODEL in backend/.env (e.g. gemini-2.5-flash or another supported Gemini model).
     streaming, // Tells LangChain whether responses should be streamed token-by-token or buffered.
     maxOutputTokens: 8192, // Hard cap on how long one reply may be (model-dependent).
   });
+}
+
+/** @param {unknown} err */
+export function isRetryableGeminiError(err) {
+  const msg = String(
+    err && typeof err === "object" && "message" in err
+      ? err.message
+      : err ?? "",
+  ).toLowerCase();
+  const status =
+    err && typeof err === "object" && "status" in err ? Number(err.status) : NaN;
+  const code =
+    err && typeof err === "object" && "code" in err ? String(err.code) : "";
+
+  if (status === 429 || status === 503) return true;
+  if (code === "429" || code === "503") return true;
+  if (
+    /resource_exhausted|unavailable|overloaded|high demand|try again later|too many requests|rate limit|quota|econnreset|etimedout/i.test(
+      msg,
+    )
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Invokes Gemini with exponential backoff when Google returns overload / rate limits.
+ * Set GEMINI_MODEL_FALLBACK (e.g. gemini-2.5-flash) to try a second model after retries exhaust.
+ *
+ * @param {import("@langchain/core/messages").BaseMessage[]} messages
+ */
+export async function invokeTrippyWithRetries(messages) {
+  const maxAttempts = Math.min(
+    12,
+    Math.max(1, Number(process.env.GEMINI_RETRY_MAX) || 5),
+  );
+  const baseMs = Math.min(
+    30_000,
+    Math.max(500, Number(process.env.GEMINI_RETRY_BASE_MS) || 2000),
+  );
+
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const llm = createTrippyLlm({ streaming: false });
+    try {
+      return await llm.invoke(messages);
+    } catch (e) {
+      lastErr = e;
+      const retryable = isRetryableGeminiError(e);
+      console.warn(
+        `[trippy] invoke attempt ${attempt}/${maxAttempts}`,
+        retryable ? "(will retry)" : "(fatal)",
+        e instanceof Error ? e.message : e,
+      );
+      if (!retryable || attempt === maxAttempts) break;
+      const delay = Math.min(baseMs * 2 ** (attempt - 1), 60_000);
+      await sleep(delay);
+    }
+  }
+
+  const fallback = process.env.GEMINI_MODEL_FALLBACK?.trim();
+  if (fallback && lastErr && isRetryableGeminiError(lastErr)) {
+    console.warn(`[trippy] trying GEMINI_MODEL_FALLBACK=${fallback}`);
+    const llmFb = createTrippyLlm({ streaming: false, model: fallback });
+    return await llmFb.invoke(messages);
+  }
+
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error(String(lastErr ?? "Gemini invoke failed"));
+}
+
+/**
+ * Same retry strategy for streaming responses (used by POST /api/chat/stream).
+ *
+ * @param {import("@langchain/core/messages").BaseMessage[]} messages
+ * @param {(text: string) => void} onText
+ */
+export async function streamTrippyWithRetries(messages, onText) {
+  const maxAttempts = Math.min(
+    12,
+    Math.max(1, Number(process.env.GEMINI_RETRY_MAX) || 5),
+  );
+  const baseMs = Math.min(
+    30_000,
+    Math.max(500, Number(process.env.GEMINI_RETRY_BASE_MS) || 2000),
+  );
+
+  let lastErr;
+
+  async function runOnce(useModel) {
+    const llm = useModel
+      ? createTrippyLlm({ streaming: true, model: useModel })
+      : createTrippyLlm({ streaming: true });
+    const stream = await llm.stream(messages);
+    for await (const chunk of stream) {
+      const text = chunkText(chunk);
+      if (text) onText(text);
+    }
+  }
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await runOnce(null);
+      return;
+    } catch (e) {
+      lastErr = e;
+      const retryable = isRetryableGeminiError(e);
+      console.warn(
+        `[trippy] stream attempt ${attempt}/${maxAttempts}`,
+        retryable ? "(will retry)" : "(fatal)",
+        e instanceof Error ? e.message : e,
+      );
+      if (!retryable || attempt === maxAttempts) break;
+      const delay = Math.min(baseMs * 2 ** (attempt - 1), 60_000);
+      await sleep(delay);
+    }
+  }
+
+  const fallback = process.env.GEMINI_MODEL_FALLBACK?.trim();
+  if (fallback && lastErr && isRetryableGeminiError(lastErr)) {
+    console.warn(`[trippy] stream fallback GEMINI_MODEL_FALLBACK=${fallback}`);
+    await runOnce(fallback);
+    return;
+  }
+
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error(String(lastErr ?? "Gemini stream failed"));
 }
 
 /**

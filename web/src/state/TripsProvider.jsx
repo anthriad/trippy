@@ -67,6 +67,16 @@ function tripsReducer(state, action) {
         },
       }
     }
+    case 'DELETE_TRIP': {
+      const tripId = action.tripId
+      if (!tripId || !state.tripsById[tripId]) return state
+      const { [tripId]: _removed, ...rest } = state.tripsById
+      return {
+        ...state,
+        tripsById: rest,
+        tripIds: state.tripIds.filter((id) => id !== tripId),
+      }
+    }
     case 'RESET_ALL_TRIPS': {
       return { tripsById: {}, tripIds: [] }
     }
@@ -106,6 +116,10 @@ export function TripsProvider({ children }) {
     dispatch({ type: 'UPDATE_TRIP', tripId, patch })
   }, [])
 
+  const deleteTrip = useCallback((tripId) => {
+    dispatch({ type: 'DELETE_TRIP', tripId })
+  }, [])
+
   const getTripById = useCallback(
     (tripId) => state.tripsById[tripId] ?? null,
     [state.tripsById],
@@ -119,9 +133,10 @@ export function TripsProvider({ children }) {
       tripsById: state.tripsById,
       addTrip,
       updateTrip,
+      deleteTrip,
       getTripById,
     }
-  }, [state, addTrip, updateTrip, getTripById])
+  }, [state, addTrip, updateTrip, deleteTrip, getTripById])
 
   return <TripsContext.Provider value={value}>{children}</TripsContext.Provider>
 }

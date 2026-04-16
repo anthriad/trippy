@@ -15,6 +15,13 @@ function renderContentAsParagraphs(text) {
   return lines.map((line, idx) => <p key={idx}>{line || '\u00A0'}</p>)
 }
 
+function getDisplayContent(message) {
+  if (message?.isPlannerSeed) {
+    return 'Trip brief sent automatically from your planner choices.'
+  }
+  return coerceMessageContent(message?.content)
+}
+
 export default function ChatPanel({
   messages,
   onSend,
@@ -80,7 +87,7 @@ export default function ChatPanel({
 
         {normalizedMessages.map((m) => {
           const role = m?.role === 'user' ? 'user' : 'assistant'
-          const content = coerceMessageContent(m?.content)
+          const content = getDisplayContent(m)
           return (
             <div
               key={m?.id || `${role}-${m?.timestamp || ''}-${content.slice(0, 12)}`}
@@ -102,7 +109,7 @@ export default function ChatPanel({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder={
-            disabled ? 'Waiting for reply…' : 'Message Trippy…'
+            disabled ? (statusText || 'Waiting for reply…') : 'Message Trippy…'
           }
           disabled={disabled}
         />

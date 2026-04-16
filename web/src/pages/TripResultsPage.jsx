@@ -2,14 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import ChatPanel from '../components/ChatPanel.jsx'
 import ItineraryPanel from '../components/ItineraryPanel.jsx'
-import { fetchApiHealth, tryExtractItineraryJson } from '../api/trippyApi.js'
+import { fetchApiHealth, streamChat, tryExtractItineraryJson } from '../api/trippyApi.js'
 import {
   buildChatRequestMessages,
-  sendChatMessage,
   subscribeToTripUpdates,
 } from '../api/tripBackendClient.js'
 import { useTripsStore } from '../state/tripsContext.js'
-import { buildSkeletonItineraryFromTrip } from '../lib/skeletonItinerary.js'
 
 function coerceChatMessage(m) {
   if (!m) return null
@@ -108,12 +106,8 @@ export default function TripResultsPage() {
     return `${start} → ${end}`
   }, [trip])
 
-  const skeletonItinerary = useMemo(
-    () => (trip ? buildSkeletonItineraryFromTrip(trip) : null),
-    [trip],
-  )
-  const displayItinerary = trip?.itinerary ?? skeletonItinerary
-  const isSkeletonDraft = Boolean(trip && !trip.itinerary && skeletonItinerary)
+  const displayItinerary = trip?.itinerary ?? null
+  const isSkeletonDraft = false
 
   useEffect(() => {
     if (!trip) return
@@ -136,7 +130,7 @@ export default function TripResultsPage() {
         error: null,
       },
     })
-    setLocalStatusText('Trippy is drafting your plan…')
+    setLocalStatusText('Plan being generated…')
 
     subscribeToTripUpdates({
       tripId,
@@ -198,29 +192,64 @@ export default function TripResultsPage() {
       content: text,
       timestamp: new Date().toISOString(),
     }
+    const assistantId = crypto.randomUUID()
+    const assistantTimestamp = new Date().toISOString()
+    const assistantPlaceholder = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: assistantTimestamp,
+      isStreaming: true,
+    }
 
+    const prior = trip.chatMessages || []
     updateTrip(tripId, {
-      chatMessages: [...(trip.chatMessages || []), userMsg],
+      chatMessages: [...prior, userMsg, assistantPlaceholder],
       sync: { ...trip.sync, status: 'syncing' },
     })
 
     setLocalStatusText('Updating…')
     try {
-      const prior = trip.chatMessages || []
       const wireMessages = buildChatRequestMessages(prior, text)
-      const assistant = await sendChatMessage({ messages: wireMessages })
-      const assistantMsg = coerceChatMessage({
-        role: 'assistant',
-        content: assistant.content,
-        id: crypto.randomUUID(),
-        timestamp: new Date().toISOString(),
+      let fullText = ''
+      let lastUiFlush = 0
+
+      await streamChat(wireMessages, {
+        onTextChunk: (t) => {
+          fullText += t
+          const now = Date.now()
+          // Throttle UI updates so we don't spam React with tiny chunks.
+          if (now - lastUiFlush < 60) return
+          lastUiFlush = now
+
+          const current = tripRef.current
+          const existing = Array.isArray(current?.chatMessages)
+            ? current.chatMessages
+            : []
+          updateTrip(tripId, {
+            chatMessages: existing.map((m) =>
+              m?.id === assistantId
+                ? { ...m, content: fullText, isStreaming: true }
+                : m,
+            ),
+          })
+        },
       })
-      const itineraryPatch = tryExtractItineraryJson(assistant.content)
+
+      const itineraryPatch = tryExtractItineraryJson(fullText)
+      const current = tripRef.current
+      const existing = Array.isArray(current?.chatMessages)
+        ? current.chatMessages
+        : []
       updateTrip(tripId, {
-        chatMessages: [...prior, userMsg, assistantMsg],
+        chatMessages: existing.map((m) =>
+          m?.id === assistantId
+            ? { ...m, content: fullText, isStreaming: false }
+            : m,
+        ),
         ...(itineraryPatch ? { itinerary: itineraryPatch } : {}),
         sync: {
-          ...trip.sync,
+          ...(current?.sync || {}),
           status: 'complete',
           error: null,
           finishedAt: new Date().toISOString(),
@@ -255,8 +284,8 @@ export default function TripResultsPage() {
   }
 
   const syncStatus = trip?.sync?.status
-  // Only block input while a user message is in flight (not during initial plan generation).
-  const shouldDisableChat = localStatusText === 'Updating…'
+  // Block input while the trip is syncing (initial plan generation or a message in flight).
+  const shouldDisableChat = syncStatus === 'syncing'
   return (
     <div className="trip-results-page">
       <div className="trip-results-topbar">

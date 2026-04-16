@@ -226,39 +226,110 @@ export function toWireMessages(chatMessages) {
 }
 
 /**
- * First Gemini turn after the user saves the planner form: we send structured JSON
- * so Trippy can answer in character and optionally echo machine-readable itinerary.
+ * Turns the planner form (`planVariables` / `trip.payload`) into a clear natural-language
+ * brief so Gemini gets destination, dates, flexibility, and budget before the raw JSON.
+ *
+ * @param {object} tripPayload — shape from App.jsx `planVariables`
+ * @returns {string[]}
+ */
+export function buildPlannerSummaryLines(tripPayload) {
+  if (!tripPayload || typeof tripPayload !== 'object') {
+    return ['(No planner details were provided.)']
+  }
+
+  const lines = []
+  const dest = tripPayload.destinations
+  const dates = tripPayload.dates
+  const budget = tripPayload.budget
+
+  if (dest?.all?.length) {
+    const kind =
+      dest.kind === 'landmark'
+        ? 'Landmarks / points of interest'
+        : 'Cities / regions'
+    lines.push(
+      `• Destinations (${kind}): ${dest.all.join(' → ')}.`,
+    )
+  } else if (dest?.primary) {
+    lines.push(`• Primary destination: ${dest.primary}.`)
+  }
+
+  if (dates?.start && dates?.end) {
+    const flex = dates.isFlexible
+      ? 'The traveler is flexible on dates — you may suggest slight shifts if they improve flights, pacing, or value.'
+      : 'The traveler wants fixed dates — only plan activities within this window.'
+    lines.push(`• Dates: ${dates.start} through ${dates.end}. ${flex}`)
+  }
+
+  if (budget && typeof budget.amount === 'number') {
+    const mode =
+      budget.mode === 'total'
+        ? 'total budget for the whole trip'
+        : 'budget per person (estimate party size as unknown unless stated)'
+    const cur = budget.currency || 'USD'
+    lines.push(
+      `• Budget: ${cur} ${budget.amount} (${mode}). Stay within or explain tradeoffs clearly.`,
+    )
+  }
+
+  if (lines.length === 0) {
+    lines.push('• (Use the JSON below for any missing fields.)')
+  }
+  return lines
+}
+
+/**
+ * First Gemini turn after the user saves the planner ("Plan trip") and lands on the trip page.
+ * Combines:
+ *   1) A human-readable summary (destination, dates, flexible vs fixed, budget)
+ *   2) The full structured JSON from the form (same as before)
+ *   3) Instructions to respond as Trippy and return a fenced itinerary JSON when possible
+ *
+ * `tripBackendClient.subscribeToTripUpdates` sends this as the opening `user` message so
+ * the itinerary panel can fill before the user chats further.
  *
  * @param {object} tripPayload — shape from App.jsx `planVariables`
  */
 export function buildInitialTripUserMessage(tripPayload) {
+  const summaryBlock = buildPlannerSummaryLines(tripPayload).join('\n')
+
   return [
-    'I just finalized this trip in the planner. Here is the structured data (JSON):',
+    'I saved this trip from the Trippy planner. Use EVERY constraint below when you reply.',
+    '',
+    '--- What I entered (read this first) ---',
+    summaryBlock,
+    '',
+    '--- Full planner data (JSON; same information, machine-readable) ---',
     '```json',
     JSON.stringify(tripPayload, null, 2),
     '```',
     '',
-    'Respond as Trippy (warm, concise opening). Propose a sensible high-level plan.',
-    'If you can, after your prose include one fenced JSON block with itinerary only, shape:',
-    '{"days":[{"label":"Day 1","items":[{"time":"","title":"","description":"","location":""}]}]}',
-    'If that is not possible, skip the JSON block — chat-only is fine.',
+    'Your tasks:',
+    '1) Answer as Trippy: short warm greeting, then a practical overview tied to my destinations, dates, flexibility, and budget.',
+    '2) Propose a day-by-day itinerary that respects the budget and date rules above.',
+    '3) After your prose, include ONE fenced ```json``` block containing ONLY itinerary data in this exact shape (no extra keys at the top level):',
+    '{"days":[{"label":"Day 1 — ...","items":[{"time":"","title":"","description":"","location":""}]}]}',
+    'If a structured itinerary is impossible, omit the JSON block and explain briefly in chat only.',
   ].join('\n')
 }
 
 /**
- * Looks for a ```json ... ``` fence in the model reply and parses `days` if present.
+ * Looks for ```json ... ``` fences in the model reply and parses the first object with `days[]`.
+ * Tries every fence so prose-before-itinerary still works.
  *
  * @param {string} assistantText
  * @returns {{ days: unknown[] } | null}
  */
 export function tryExtractItineraryJson(assistantText) {
-  const fence = assistantText.match(/```(?:json)?\s*([\s\S]*?)```/i)
-  if (!fence) return null
-  try {
-    const obj = JSON.parse(fence[1].trim())
-    if (obj && typeof obj === 'object' && Array.isArray(obj.days)) return obj
-  } catch {
-    /* not valid JSON */
+  const re = /```(?:json)?\s*([\s\S]*?)```/gi
+  let m
+  while ((m = re.exec(assistantText)) !== null) {
+    try {
+      const obj = JSON.parse(m[1].trim())
+      if (obj && typeof obj === 'object' && Array.isArray(obj.days)) return obj
+    } catch {
+      /* try next fence */
+    }
   }
   return null
 }

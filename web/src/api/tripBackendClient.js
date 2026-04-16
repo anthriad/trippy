@@ -17,6 +17,7 @@ import {
   buildInitialTripUserMessage,
   checkApiHealth,
   sendChat,
+  streamChat,
   toWireMessages,
   tryExtractItineraryJson,
 } from './trippyApi.js'
@@ -67,22 +68,56 @@ export async function subscribeToTripUpdates({
   onStatus?.({ status: 'syncing' })
 
   try {
-    const content = buildInitialTripUserMessage(payload)
-    const assistant = await sendChat([{ role: 'user', content }], { signal })
+    const seededMessages = toWireMessages(msgs)
+    const requestMessages =
+      seededMessages.length > 0
+        ? seededMessages
+        : [{ role: 'user', content: buildInitialTripUserMessage(payload) }]
+    const assistantId = crypto.randomUUID()
+    const timestamp = new Date().toISOString()
+    let fullText = ''
 
-    const itinerary = tryExtractItineraryJson(assistant.content)
-    /** @type {Record<string, unknown>} */
-    const evt = {
+    // Create a placeholder assistant message immediately so the UI can “type”.
+    onEvent?.({
       message: {
-        id: crypto.randomUUID(),
+        id: assistantId,
         role: 'assistant',
-        content: assistant.content,
-        timestamp: new Date().toISOString(),
+        content: '',
+        timestamp,
+        isStreaming: true,
       },
-    }
-    if (itinerary) evt.itinerary = itinerary
+    })
 
-    onEvent?.(evt)
+    await streamChat(requestMessages, {
+      signal,
+      onTextChunk: (t) => {
+        fullText += t
+        onEvent?.({
+          message: {
+            id: assistantId,
+            role: 'assistant',
+            content: fullText,
+            timestamp,
+            isStreaming: true,
+          },
+        })
+      },
+      onComplete: () => {
+        const itinerary = tryExtractItineraryJson(fullText)
+        /** @type {Record<string, unknown>} */
+        const evt = {
+          message: {
+            id: assistantId,
+            role: 'assistant',
+            content: fullText,
+            timestamp,
+          },
+        }
+        if (itinerary) evt.itinerary = itinerary
+        onEvent?.(evt)
+      },
+    })
+
     onStatus?.({ status: 'complete' })
   } catch (e) {
     const err = e instanceof Error ? e : new Error(String(e))

@@ -27,9 +27,10 @@ import { fileURLToPath } from "url";
 
 // Everything below uses the SAME prompt + ChatGoogle setup as gemini-agent/agent.js.
 import {
-  createTrippyLlm, // Factory for the LangChain Gemini client.
-  toLangChainMessages, // Turns JSON messages from frontend into LangChain format.
-  chunkText, // Extracts text from each streaming chunk.
+  invokeTrippyWithRetries,
+  streamTrippyWithRetries,
+  toLangChainMessages,
+  chunkText,
 } from "../gemini-agent/trippyCore.js";
 
 // import.meta.url is a special string like file:///.../backend/server.js
@@ -118,12 +119,9 @@ app.post("/api/chat", async (req, res) => {
   }
 
   try {
-    // Non-streaming invoke: one round trip, one complete string back.
-    const llm = createTrippyLlm({ streaming: false });
-    // Convert the wire format to LangChain messages (includes system prompt inside).
     const lcMessages = toLangChainMessages(req.body.messages);
-    // invoke runs the model and resolves when the answer is complete.
-    const response = await llm.invoke(lcMessages);
+    // Retries + optional GEMINI_MODEL_FALLBACK when Google returns overload / 429 / 503.
+    const response = await invokeTrippyWithRetries(lcMessages);
 
     // LangChain may return content as string or structured; normalize to string.
     const content =
@@ -165,23 +163,13 @@ app.post("/api/chat/stream", async (req, res) => {
   res.flushHeaders?.();
 
   try {
-    const llm = createTrippyLlm({ streaming: true });
     const lcMessages = toLangChainMessages(req.body.messages);
-    // stream() returns an async iterable of chunks instead of one final message.
-    const stream = await llm.stream(lcMessages);
+    await streamTrippyWithRetries(lcMessages, (text) => {
+      res.write(`data: ${JSON.stringify({ text })}\n\n`);
+    });
 
-    for await (const chunk of stream) {
-      const text = chunkText(chunk);
-      if (text) {
-        // SSE format: each event is one or more lines starting with "data: ".
-        // JSON.stringify escapes quotes/newlines safely inside one line.
-        res.write(`data: ${JSON.stringify({ text })}\n\n`);
-      }
-    }
-
-    // Special sentinel some clients look for to know streaming finished.
     res.write("data: [DONE]\n\n");
-    res.end(); // Close the HTTP response (stream complete).
+    res.end();
   } catch (e) {
     console.error(e);
     const msg = e instanceof Error ? e.message : "Chat failed";
