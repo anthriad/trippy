@@ -326,7 +326,24 @@ export function tryExtractItineraryJson(assistantText) {
   while ((m = re.exec(assistantText)) !== null) {
     try {
       const obj = JSON.parse(m[1].trim())
-      if (obj && typeof obj === 'object' && Array.isArray(obj.days)) return obj
+      if (obj && typeof obj === 'object') {
+        // Original expected shape: { days: [...] }
+        if (Array.isArray(obj.days)) return obj
+
+        // Some models wrap the itinerary: { itinerary: { days: [...] } }
+        if (
+          obj.itinerary &&
+          typeof obj.itinerary === 'object' &&
+          Array.isArray(obj.itinerary.days)
+        ) {
+          return { days: obj.itinerary.days }
+        }
+      }
+
+      // Occasionally the model may emit a bare array of days: [ { …day… }, … ]
+      if (Array.isArray(obj)) {
+        return { days: obj }
+      }
     } catch {
       /* try next fence */
     }
