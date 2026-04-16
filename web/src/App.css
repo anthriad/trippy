@@ -21,10 +21,6 @@
   max-width: 28rem;
 }
 
-.trip-form-section-calendar-open {
-  margin-bottom: 20rem;
-}
-
 .trip-theme-row {
   position: fixed;
   top: 14px;
@@ -302,11 +298,6 @@
   cursor: pointer;
 }
 
-.trip-calendar-day-empty {
-  display: block;
-  min-height: 34px;
-}
-
 .trip-calendar-day:hover:not(:disabled) {
   background: var(--accent-bg);
   border-color: var(--accent-border);
@@ -316,6 +307,10 @@
   background: linear-gradient(120deg, #f97316, #f59e0b);
   color: #fff;
   border-color: transparent;
+}
+
+.trip-calendar-day[data-out] {
+  opacity: 0.55;
 }
 
 .trip-calendar-day:disabled {

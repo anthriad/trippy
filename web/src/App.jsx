@@ -415,14 +415,7 @@ function TripPlannerPage() {
 
   return (
     <div className="trip-app">
-      <section
-        className={
-          openDatePicker
-            ? 'trip-form-section trip-form-section-calendar-open'
-            : 'trip-form-section'
-        }
-        aria-labelledby="trip-form-title"
-      >
+      <section className="trip-form-section" aria-labelledby="trip-form-title">
         <div className="trip-theme-row">
           <span className="trip-theme-label">
             {theme === 'dark' ? 'Dark mode' : 'Light mode'}
@@ -935,9 +928,6 @@ function CalendarPopup({
         {days.map((d) => {
           const iso = toIsoDate(d)
           const outOfMonth = d.getMonth() !== monthStart.getMonth()
-          if (outOfMonth) {
-            return <span key={iso} className="trip-calendar-day-empty" aria-hidden />
-          }
           const disabled =
             (minDate && iso < minDate) || (maxDate && iso > maxDate)
           return (
@@ -950,6 +940,7 @@ function CalendarPopup({
                   : 'trip-calendar-day'
               }
               disabled={disabled}
+              data-out={outOfMonth || undefined}
               onClick={() => onSelect(iso)}
             >
               {d.getDate()}
