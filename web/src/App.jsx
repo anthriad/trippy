@@ -60,6 +60,7 @@ function TripPlannerPage() {
   const [destinationSuggestions, setDestinationSuggestions] = useState([])
   const [openDatePicker, setOpenDatePicker] = useState(null)
   const [calendarMonth, setCalendarMonth] = useState(startOfMonth(new Date()))
+  const [pendingDeleteTrip, setPendingDeleteTrip] = useState(null)
 
   const destinationKind = normalizeDestinationKind(form.destinationKind)
 
@@ -414,7 +415,7 @@ function TripPlannerPage() {
   }
 
   return (
-    <div className="trip-app">
+    <div className={openDatePicker ? 'trip-app trip-app-calendar-open' : 'trip-app'}>
       <section className="trip-form-section" aria-labelledby="trip-form-title">
         <div className="trip-theme-row">
           <span className="trip-theme-label">
@@ -661,7 +662,11 @@ function TripPlannerPage() {
 
           {hasDestination ? (
             <>
-              <div className="trip-row">
+              <div
+                className={
+                  openDatePicker ? 'trip-row trip-row-calendar-open' : 'trip-row'
+                }
+              >
                 <div className="trip-field">
                   <label htmlFor="startDate">Start date</label>
                   <div className="trip-date-picker-wrap">
@@ -850,7 +855,7 @@ function TripPlannerPage() {
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    deleteTrip?.(trip.id)
+                    setPendingDeleteTrip({ id: trip.id, location: trip.location })
                   }}
                 >
                   ×
@@ -859,6 +864,49 @@ function TripPlannerPage() {
             ))}
           </ul>
         </section>
+      ) : null}
+
+      {pendingDeleteTrip ? (
+        <div
+          className="trip-confirm-overlay"
+          role="presentation"
+          onClick={() => setPendingDeleteTrip(null)}
+        >
+          <div
+            className="trip-confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="trip-delete-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="trip-delete-title" className="trip-confirm-title">
+              Delete saved trip?
+            </h3>
+            <p className="trip-confirm-copy">
+              Are you sure you want to delete this saved trip?
+            </p>
+            <p className="trip-confirm-trip">{pendingDeleteTrip.location}</p>
+            <div className="trip-confirm-actions">
+              <button
+                type="button"
+                className="trip-confirm-btn trip-confirm-btn-cancel"
+                onClick={() => setPendingDeleteTrip(null)}
+              >
+                No, keep it
+              </button>
+              <button
+                type="button"
+                className="trip-confirm-btn trip-confirm-btn-danger"
+                onClick={() => {
+                  deleteTrip?.(pendingDeleteTrip.id)
+                  setPendingDeleteTrip(null)
+                }}
+              >
+                Yes, delete
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   )
@@ -897,6 +945,7 @@ function CalendarPopup({
   const monthStart = startOfMonth(month)
   const days = buildCalendarDays(monthStart)
   const selectedIso = value || ''
+  const leadingEmptyDays = monthStart.getDay()
 
   return (
     <div className="trip-calendar-popover" role="dialog" aria-modal="false">
@@ -925,9 +974,15 @@ function CalendarPopup({
         ))}
       </div>
       <div className="trip-calendar-grid">
+        {Array.from({ length: leadingEmptyDays }).map((_, i) => (
+          <span
+            key={`empty-${monthStart.getFullYear()}-${monthStart.getMonth()}-${i}`}
+            className="trip-calendar-empty"
+            aria-hidden="true"
+          />
+        ))}
         {days.map((d) => {
           const iso = toIsoDate(d)
-          const outOfMonth = d.getMonth() !== monthStart.getMonth()
           const disabled =
             (minDate && iso < minDate) || (maxDate && iso > maxDate)
           return (
@@ -940,7 +995,6 @@ function CalendarPopup({
                   : 'trip-calendar-day'
               }
               disabled={disabled}
-              data-out={outOfMonth || undefined}
               onClick={() => onSelect(iso)}
             >
               {d.getDate()}
@@ -980,12 +1034,12 @@ function addMonths(d, n) {
 }
 
 function buildCalendarDays(monthStart) {
-  const first = new Date(monthStart)
-  first.setDate(1 - first.getDay())
   const days = []
-  for (let i = 0; i < 42; i += 1) {
-    const d = new Date(first)
-    d.setDate(first.getDate() + i)
+  const year = monthStart.getFullYear()
+  const month = monthStart.getMonth()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const d = new Date(year, month, day)
     days.push(d)
   }
   return days

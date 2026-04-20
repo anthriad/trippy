@@ -85,6 +85,7 @@ export async function subscribeToTripUpdates({
         content: '',
         timestamp,
         isStreaming: true,
+        isInitialPlanMessage: true,
       },
     })
 
@@ -99,6 +100,7 @@ export async function subscribeToTripUpdates({
             content: fullText,
             timestamp,
             isStreaming: true,
+            isInitialPlanMessage: true,
           },
         })
       },
@@ -111,6 +113,7 @@ export async function subscribeToTripUpdates({
             role: 'assistant',
             content: fullText,
             timestamp,
+            isInitialPlanMessage: true,
           },
         }
         if (itinerary) evt.itinerary = itinerary
