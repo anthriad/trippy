@@ -181,6 +181,10 @@ function cleanAssistantChatDisplay(content) {
   return stripMarkdownFormatting(withoutJson || text)
 }
 
+function renderHighlightedDestination(label) {
+  return <span className="trip-country-highlight">{String(label || '').trim()}</span>
+}
+
 export default function TripResultsPage() {
   const { tripId } = useParams()
   const navigate = useNavigate()
@@ -191,6 +195,7 @@ export default function TripResultsPage() {
   const initialSyncInFlightRef = useRef(false)
   const [localStatusText, setLocalStatusText] = useState('')
   const [chatConfigWarning, setChatConfigWarning] = useState('')
+  const [expandedPane, setExpandedPane] = useState(null)
 
   useEffect(() => {
     tripRef.current = trip
@@ -458,6 +463,8 @@ export default function TripResultsPage() {
   const syncStatus = trip?.sync?.status
   // Block input while the trip is syncing (initial plan generation or a message in flight).
   const shouldDisableChat = syncStatus === 'syncing'
+  const isLeftExpanded = expandedPane === 'left'
+  const isRightExpanded = expandedPane === 'right'
   return (
     <div className="trip-results-page">
       <div className="trip-results-topbar">
@@ -471,7 +478,9 @@ export default function TripResultsPage() {
           </button>
           <div className="trip-results-trip-summary">
             <span className="trip-results-trip-destination">
-              <span className="trip-results-trip-place">{headerSummary.location}</span>
+              <span className="trip-results-trip-place">
+                {renderHighlightedDestination(headerSummary.location)}
+              </span>
             </span>
             {headerSummary.startLabel && headerSummary.endLabel ? (
               <span className="trip-results-trip-dates-hero">
@@ -488,7 +497,9 @@ export default function TripResultsPage() {
         <div className="trip-results-topbar-right" />
       </div>
 
-      <div className="trip-results-grid">
+      <div
+        className={`trip-results-grid ${isLeftExpanded ? 'trip-results-grid-left-expanded' : ''} ${isRightExpanded ? 'trip-results-grid-right-expanded' : ''}`}
+      >
         <aside className="trip-results-left">
           <ChatPanel
             messages={chatMessagesForDisplay}
@@ -496,6 +507,24 @@ export default function TripResultsPage() {
             disabled={shouldDisableChat}
             configWarning={chatConfigWarning || undefined}
             statusText={localStatusText || undefined}
+            headerAction={
+              <button
+                type="button"
+                className={
+                  isLeftExpanded
+                    ? 'trip-results-pane-toggle trip-results-pane-toggle-active'
+                    : 'trip-results-pane-toggle'
+                }
+                onClick={() =>
+                  setExpandedPane((prev) => (prev === 'left' ? null : 'left'))
+                }
+                aria-pressed={isLeftExpanded}
+                aria-label={isLeftExpanded ? 'Restore split view' : 'Expand chat panel'}
+                title={isLeftExpanded ? 'Restore split view' : 'Expand chat panel'}
+              >
+                <FullscreenCornersIcon />
+              </button>
+            }
             title="Trippy"
             tagline="AI travel agent"
             emptyHint="Alohaa! I'm Trippy, your AI travel guide."
@@ -507,12 +536,59 @@ export default function TripResultsPage() {
             itinerary={displayItinerary}
             isSkeletonDraft={isSkeletonDraft}
             meta={trip.meta}
+            headerAction={
+              <button
+                type="button"
+                className={
+                  isRightExpanded
+                    ? 'trip-results-pane-toggle trip-results-pane-toggle-active'
+                    : 'trip-results-pane-toggle'
+                }
+                onClick={() =>
+                  setExpandedPane((prev) => (prev === 'right' ? null : 'right'))
+                }
+                aria-pressed={isRightExpanded}
+                aria-label={
+                  isRightExpanded ? 'Restore split view' : 'Expand itinerary panel'
+                }
+                title={
+                  isRightExpanded ? 'Restore split view' : 'Expand itinerary panel'
+                }
+              >
+                <FullscreenCornersIcon />
+              </button>
+            }
             destinationLabel={trip.location || 'Saved trip'}
             datesSummary={itineraryDatesSummary}
           />
         </main>
       </div>
     </div>
+  )
+}
+
+function FullscreenCornersIcon() {
+  return (
+    <svg
+      className="trip-results-pane-toggle-icon"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M9 3H3v6" />
+      <path d="M3 3l7 7" />
+      <path d="M15 3h6v6" />
+      <path d="M21 3l-7 7" />
+      <path d="M9 21H3v-6" />
+      <path d="M3 21l7-7" />
+      <path d="M15 21h6v-6" />
+      <path d="M21 21l-7-7" />
+    </svg>
   )
 }
 

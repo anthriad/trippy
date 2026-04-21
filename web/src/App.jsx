@@ -946,6 +946,7 @@ function CalendarPopup({
   const days = buildCalendarDays(monthStart)
   const selectedIso = value || ''
   const leadingEmptyDays = monthStart.getDay()
+  const todayIso = toIsoDate(new Date())
 
   return (
     <div className="trip-calendar-popover" role="dialog" aria-modal="false">
@@ -984,6 +985,7 @@ function CalendarPopup({
         {days.map((d) => {
           const iso = toIsoDate(d)
           const disabled =
+            iso < todayIso ||
             (minDate && iso < minDate) || (maxDate && iso > maxDate)
           return (
             <button

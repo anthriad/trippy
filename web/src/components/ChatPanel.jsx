@@ -108,6 +108,7 @@ export default function ChatPanel({
   onSend,
   disabled,
   statusText,
+  headerAction = null,
   /** e.g. missing GEMINI_API_KEY — shown under the tagline */
   configWarning,
   /** Main heading (e.g. "Trippy") */
@@ -161,6 +162,7 @@ export default function ChatPanel({
             </div>
           ) : null}
         </div>
+        {headerAction ? <div>{headerAction}</div> : null}
       </div>
 
       <div className="trip-results-chat-messages" ref={listRef} role="log">

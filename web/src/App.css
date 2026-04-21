@@ -1201,6 +1201,72 @@
   align-items: start;
 }
 
+.trip-results-left,
+.trip-results-right {
+  min-width: 0;
+}
+
+.trip-results-pane-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.22);
+  color: var(--text-h);
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    color 0.2s,
+    transform 0.2s;
+}
+
+.trip-results-pane-toggle:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.trip-results-pane-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.trip-results-pane-toggle-active {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.22), rgba(251, 191, 36, 0.16));
+}
+
+.trip-results-pane-toggle-icon {
+  width: 0.56rem;
+  height: 0.56rem;
+  display: block;
+}
+
+.trip-results-grid-left-expanded {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.trip-results-grid-left-expanded .trip-results-right {
+  display: none;
+}
+
+.trip-results-grid-right-expanded {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.trip-results-grid-right-expanded .trip-results-left {
+  display: none;
+}
+
 @media (max-width: 900px) {
   .trip-results-grid {
     grid-template-columns: 1fr;
@@ -1419,10 +1485,12 @@
   backdrop-filter: blur(16px) saturate(150%);
   -webkit-backdrop-filter: blur(16px) saturate(150%);
   padding: 14px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
   height: 65vh;
   max-height: 65vh;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .trip-results-itinerary-header {
@@ -1430,6 +1498,21 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
+  padding-right: 30px;
+}
+
+.trip-results-itinerary-header-action {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.trip-results-itinerary-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
 }
 
 .trip-results-section-title {
@@ -1449,6 +1532,11 @@
   font-size: 0.82rem;
   color: var(--text);
   opacity: 0.95;
+}
+
+.trip-country-highlight {
+  color: #ef4444;
+  font-weight: 800;
 }
 
 .trip-results-itinerary-draft-banner {

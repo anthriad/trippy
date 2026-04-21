@@ -56,11 +56,16 @@ function renderItinerary(itinerary) {
   )
 }
 
+function renderHighlightedDestination(label) {
+  return <span className="trip-country-highlight">{String(label || '').trim()}</span>
+}
+
 export default function ItineraryPanel({
   itinerary,
   /** True when showing a client-built outline before Trippy returns structured JSON */
   isSkeletonDraft = false,
   meta,
+  headerAction = null,
   /** Primary label for this saved trip (e.g. city or combined destinations) */
   destinationLabel,
   /** Optional date range text */
@@ -72,38 +77,45 @@ export default function ItineraryPanel({
         <div>
           <strong className="trip-results-section-title">Itinerary</strong>
           {destinationLabel ? (
-            <p className="trip-results-itinerary-destination">{destinationLabel}</p>
+            <p className="trip-results-itinerary-destination">
+              {renderHighlightedDestination(destinationLabel)}
+            </p>
           ) : null}
           {datesSummary ? (
             <p className="trip-results-itinerary-dates">{datesSummary}</p>
           ) : null}
         </div>
+        {headerAction ? (
+          <div className="trip-results-itinerary-header-action">{headerAction}</div>
+        ) : null}
       </div>
 
-      {isSkeletonDraft ? (
-        <p className="trip-results-itinerary-draft-banner" role="status">
-          Draft outline from your trip details — Trippy will refine this when the plan syncs or when
-          you chat.
-        </p>
-      ) : null}
+      <div className="trip-results-itinerary-content">
+        {isSkeletonDraft ? (
+          <p className="trip-results-itinerary-draft-banner" role="status">
+            Draft outline from your trip details — Trippy will refine this when the plan syncs or when
+            you chat.
+          </p>
+        ) : null}
 
-      {!itinerary ? (
-        <div className="trip-results-itinerary-empty">
-          Your day-by-day plan for this saved trip will show here once Trippy generates it (first
-          load or after you ask for changes in the agent chat).
-        </div>
-      ) : null}
+        {!itinerary ? (
+          <div className="trip-results-itinerary-empty">
+            Your day-by-day plan for this saved trip will show here once Trippy generates it (first
+            load or after you ask for changes in the agent chat).
+          </div>
+        ) : null}
 
-      {itinerary ? renderItinerary(itinerary) : null}
+        {itinerary ? renderItinerary(itinerary) : null}
 
-      {meta ? (
-        <div className="trip-results-meta">
-          <h3 className="trip-results-section-subtitle">Other info</h3>
-          <pre className="trip-results-pre">
-            {JSON.stringify(meta, null, 2)}
-          </pre>
-        </div>
-      ) : null}
+        {meta ? (
+          <div className="trip-results-meta">
+            <h3 className="trip-results-section-subtitle">Other info</h3>
+            <pre className="trip-results-pre">
+              {JSON.stringify(meta, null, 2)}
+            </pre>
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
