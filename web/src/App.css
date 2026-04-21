@@ -919,9 +919,9 @@
   width: 18px;
   height: 18px;
   border-radius: 7px;
-  border: 1px solid rgba(239, 68, 68, 0.55);
-  background: rgba(239, 68, 68, 0.18);
-  color: rgba(254, 226, 226, 1);
+  border: 1px solid rgba(185, 28, 28, 0.85);
+  background: rgba(185, 28, 28, 0.32);
+  color: #7f1d1d;
   cursor: pointer;
   line-height: 1;
   font-size: 11px;
@@ -940,8 +940,9 @@
 
 .trip-card-delete:hover {
   transform: translateY(-1px);
-  background: rgba(239, 68, 68, 0.26);
-  border-color: rgba(239, 68, 68, 0.8);
+  background: rgba(185, 28, 28, 0.42);
+  border-color: rgba(153, 27, 27, 0.95);
+  color: #450a0a;
 }
 
 .trip-card-delete:focus-visible {
