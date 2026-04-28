@@ -902,15 +902,9 @@
   width: min(100%, 28rem);
   align-self: center;
   margin-inline: auto;
-  /* Match .trip-panel horizontal padding so cards line up with form fields */
-  padding-inline: 28px;
   text-align: left;
   position: relative;
   z-index: 1;
-
-  @media (max-width: 1024px) {
-    padding-inline: 20px;
-  }
 
   h2 {
     margin: 0 0 16px;
@@ -923,9 +917,15 @@
   list-style: none;
   margin: 0;
   padding: 0;
+  /* Match .trip-panel horizontal padding so cards line up with form fields */
+  padding-inline: 28px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+
+  @media (max-width: 1024px) {
+    padding-inline: 20px;
+  }
 }
 
 .trip-card {
