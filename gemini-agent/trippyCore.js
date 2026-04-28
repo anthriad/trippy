@@ -114,7 +114,7 @@ export function createTrippyLlm(options = {}) {
   const model =
     options.model?.trim() ||
     process.env.GEMINI_MODEL?.trim() ||
-    "gemini-2.5-flash";
+    "gemini-2.5-flash-lite";
 
   // This object knows how to call Google's Gemini API using your key.
   return new ChatGoogle({
@@ -130,10 +130,12 @@ export function isRetryableGeminiError(err) {
   const msg = String(
     err && typeof err === "object" && "message" in err
       ? err.message
-      : err ?? "",
+      : (err ?? ""),
   ).toLowerCase();
   const status =
-    err && typeof err === "object" && "status" in err ? Number(err.status) : NaN;
+    err && typeof err === "object" && "status" in err
+      ? Number(err.status)
+      : NaN;
   const code =
     err && typeof err === "object" && "code" in err ? String(err.code) : "";
 
