@@ -24,8 +24,6 @@ function coerceChatMessage(m) {
 }
 
 function applyBackendEventToTrip(trip, event) {
-  // We support multiple possible backend shapes by treating common fields
-  // (itinerary/meta/chatMessages/chatMessage) as replacements/patches.
   const patch = {}
 
   if (event?.itinerary) patch.itinerary = event.itinerary
@@ -118,21 +116,15 @@ function formatHeaderDate(iso) {
 function stripMarkdownFormatting(text) {
   if (typeof text !== 'string') return ''
   return text
-    // Remove fenced code blocks entirely.
     .replace(/```[\s\S]*?```/g, '')
-    // Remove markdown heading markers.
     .replace(/^\s{0,3}#{1,6}\s*/gm, '')
-    // Remove horizontal rules like --- or ***.
     .replace(/^\s*([-*_])\1{2,}\s*$/gm, '')
-    // Normalize markdown list markers into readable bullets.
     .replace(/^\s*[-*]\s+/gm, '• ')
     .replace(/^\s*\d+\.\s+/gm, '• ')
-    // Remove bold/italic markdown markers.
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
     .replace(/__(.*?)__/g, '$1')
     .replace(/_(.*?)_/g, '$1')
-    // Clean extra spaces/newlines.
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
@@ -151,7 +143,6 @@ function cleanAssistantChatDisplay(content) {
     withoutJson.length > 500
 
   if (hasItineraryJson || hasDayByDayDump) {
-    // Keep the conversational intro, cut off long itinerary dumps.
     const cutoffMarkers = [/^---$/m, /\n#{1,6}\s+\*\*?day\s*1\b/i, /\n\s*\*\s*\*\*day\s*1\b/i]
     let intro = withoutJson
     for (const marker of cutoffMarkers) {
@@ -162,7 +153,6 @@ function cleanAssistantChatDisplay(content) {
       }
     }
 
-    // If still long, keep only first couple sentences.
     if (intro.length > 360) {
       const sentenceChunks = intro.match(/[^.!?]+[.!?]+/g) || []
       if (sentenceChunks.length > 0) {
@@ -283,7 +273,6 @@ export default function TripResultsPage() {
     const status = trip?.sync?.status || 'idle'
     if (status === 'complete') return
     if (status === 'error') {
-      // allow resync on explicit user request; not automatic
       return
     }
     if (initialSyncInFlightRef.current) return
@@ -402,7 +391,6 @@ export default function TripResultsPage() {
         onTextChunk: (t) => {
           fullText += t
           const now = Date.now()
-          // Throttle UI updates so we don't spam React with tiny chunks.
           if (now - lastUiFlush < 60) return
           lastUiFlush = now
 
@@ -468,7 +456,6 @@ export default function TripResultsPage() {
   }
 
   const syncStatus = trip?.sync?.status
-  // Block input while the trip is syncing (initial plan generation or a message in flight).
   const shouldDisableChat = syncStatus === 'syncing'
   const isLeftExpanded = expandedPane === 'left'
   const isRightExpanded = expandedPane === 'right'

@@ -494,11 +494,6 @@
   position: relative;
 }
 
-/**
- * In-flow suggestion lists: absolute dropdowns sit under the next .trip-panel
- * (sibling paint order). Static lists grow the current panel so the following card
- * (e.g. dates) stays below the open list.
- */
 .trip-dest-combobox--inline-list .trip-dest-list {
   position: static;
   top: auto;
@@ -917,7 +912,6 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  /* Match .trip-panel horizontal padding so cards line up with form fields */
   padding-inline: 28px;
   display: flex;
   flex-direction: column;

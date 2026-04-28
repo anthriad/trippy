@@ -22,8 +22,6 @@ function mergeTrip(existing, patch) {
       ? { ...existing.sync, ...patch.sync }
       : patch.sync ?? existing.sync
 
-  // For itinerary/chat/meta we default to replacement when explicitly provided
-  // (backend updates can send partials later if desired).
   return {
     ...existing,
     ...patch,
@@ -101,7 +99,6 @@ export function TripsProvider({ children }) {
   })
 
   useEffect(() => {
-    // Debounce persistence to reduce main-thread stalls during rapid updates.
     const tid = setTimeout(() => {
       localStorage.setItem(TRIPS_STORAGE_KEY, JSON.stringify(state))
     }, 200)
