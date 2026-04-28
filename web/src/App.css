@@ -17,8 +17,9 @@
 }
 
 .trip-form-section {
-  width: 100%;
-  max-width: 28rem;
+  box-sizing: border-box;
+  width: min(100%, 28rem);
+  align-self: center;
   position: relative;
   z-index: 3;
 }
@@ -897,11 +898,19 @@
 }
 
 .trip-list-section {
-  width: 100%;
-  max-width: 28rem;
+  box-sizing: border-box;
+  width: min(100%, 28rem);
+  align-self: center;
+  margin-inline: auto;
+  /* Match .trip-panel horizontal padding so cards line up with form fields */
+  padding-inline: 28px;
   text-align: left;
   position: relative;
   z-index: 1;
+
+  @media (max-width: 1024px) {
+    padding-inline: 20px;
+  }
 
   h2 {
     margin: 0 0 16px;
