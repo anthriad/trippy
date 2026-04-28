@@ -229,14 +229,21 @@ export default function TripResultsPage() {
     if (!trip) {
       return {
         location: '',
+        fromLabel: '',
         startLabel: '',
         endLabel: '',
       }
     }
     const start = trip.startDate || trip?.payload?.dates?.start || ''
     const end = trip.endDate || trip?.payload?.dates?.end || ''
+    const fromRaw =
+      (typeof trip.travellingFrom === 'string' && trip.travellingFrom.trim()) ||
+      (typeof trip?.payload?.travellingFrom === 'string' &&
+        trip.payload.travellingFrom.trim()) ||
+      ''
     return {
       location: trip.location || '',
+      fromLabel: fromRaw,
       startLabel: formatHeaderDate(start),
       endLabel: formatHeaderDate(end),
     }
@@ -477,6 +484,11 @@ export default function TripResultsPage() {
             Back
           </button>
           <div className="trip-results-trip-summary">
+            {headerSummary.fromLabel ? (
+              <span className="trip-results-trip-from">
+                From {headerSummary.fromLabel}
+              </span>
+            ) : null}
             <span className="trip-results-trip-destination">
               <span className="trip-results-trip-place">
                 {renderHighlightedDestination(headerSummary.location)}

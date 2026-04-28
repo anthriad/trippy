@@ -241,6 +241,16 @@ export function buildPlannerSummaryLines(tripPayload) {
   const dest = tripPayload.destinations
   const dates = tripPayload.dates
   const budget = tripPayload.budget
+  const from =
+    typeof tripPayload.travellingFrom === 'string'
+      ? tripPayload.travellingFrom.trim()
+      : ''
+
+  if (from) {
+    lines.push(
+      `• Travelling from: ${from}. Use this for realistic flights, time zones, jet lag on day one, and connection context.`,
+    )
+  }
 
   if (dest?.all?.length) {
     const kind =
@@ -305,7 +315,7 @@ export function buildInitialTripUserMessage(tripPayload) {
     '```',
     '',
     'Your tasks:',
-    '1) Answer as Trippy: short warm greeting, then a practical overview tied to my destinations, dates, flexibility, and budget.',
+    '1) Answer as Trippy: short warm greeting, then a practical overview tied to my starting point (if given), destinations, dates, flexibility, and budget.',
     '2) Propose a day-by-day itinerary that respects the budget and date rules above.',
     '3) After your prose, include ONE fenced ```json``` block containing ONLY itinerary data in this exact shape (no extra keys at the top level):',
     '{"days":[{"label":"Day 1 — ...","items":[{"time":"","title":"","description":"","location":""}]}]}',

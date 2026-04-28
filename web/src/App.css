@@ -135,6 +135,14 @@
   gap: 18px;
 }
 
+.trip-form-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  align-items: stretch;
+}
+
 .trip-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -485,6 +493,19 @@
   position: relative;
 }
 
+/**
+ * In-flow suggestion lists: absolute dropdowns sit under the next .trip-panel
+ * (sibling paint order). Static lists grow the current panel so the following card
+ * (e.g. dates) stays below the open list.
+ */
+.trip-dest-combobox--inline-list .trip-dest-list {
+  position: static;
+  top: auto;
+  left: auto;
+  right: auto;
+  margin-top: 8px;
+}
+
 .trip-extra-destination-row {
   margin-top: 8px;
   display: flex;
@@ -799,6 +820,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  margin-top: 14px;
 
   input {
     width: 1.1rem;
@@ -972,6 +994,13 @@
   margin-bottom: 2px;
 }
 
+.trip-card-from {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text);
+  opacity: 0.92;
+}
+
 .trip-card-dates {
   font-size: 0.88rem;
   color: var(--text);
@@ -1134,6 +1163,17 @@
   flex-wrap: wrap;
   gap: 10px 12px;
   color: var(--text-h);
+}
+
+.trip-results-trip-from {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  opacity: 0.88;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.12);
 }
 
 .trip-results-trip-destination {

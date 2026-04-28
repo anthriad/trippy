@@ -22,6 +22,7 @@ function normalizeDestinationKind(value) {
 }
 
 const initialForm = {
+  travellingFrom: '',
   location: '',
   extraLocations: [],
   destinationKind: DESTINATION_KIND_DEFAULT,
@@ -54,8 +55,11 @@ function TripPlannerPage() {
     useState(false)
   const [destinationActiveIndex, setDestinationActiveIndex] = useState(0)
   const destinationComboboxRef = useRef(null)
+  const originComboboxRef = useRef(null)
   const locationInputRef = useRef(null)
+  const originInputRef = useRef(null)
   const placesSessionRef = useRef(null)
+  const prevActivePlacesFieldTypeRef = useRef(null)
 
   const [destinationSuggestions, setDestinationSuggestions] = useState([])
   const [openDatePicker, setOpenDatePicker] = useState(null)
@@ -63,6 +67,8 @@ function TripPlannerPage() {
   const [pendingDeleteTrip, setPendingDeleteTrip] = useState(null)
 
   const destinationKind = normalizeDestinationKind(form.destinationKind)
+  const activePlacesKind =
+    activeDestinationField?.type === 'origin' ? 'city' : destinationKind
 
   const activeDestinationQuery = getActiveDestinationQuery(
     activeDestinationField,
@@ -95,6 +101,17 @@ function TripPlannerPage() {
   useEffect(() => {
     placesSessionRef.current = null
   }, [destinationKind])
+
+  useEffect(() => {
+    const cur = activeDestinationField?.type
+    const prev = prevActivePlacesFieldTypeRef.current
+    if (prev && cur) {
+      const wasOrigin = prev === 'origin'
+      const isOrigin = cur === 'origin'
+      if (wasOrigin !== isOrigin) placesSessionRef.current = null
+    }
+    prevActivePlacesFieldTypeRef.current = cur
+  }, [activeDestinationField])
 
   useEffect(() => {
     setDestinationActiveIndex(0)
@@ -139,7 +156,7 @@ function TripPlannerPage() {
         }
         const rows = await fetchPlaceSuggestions(
           q,
-          destinationKind,
+          activePlacesKind,
           placesSessionRef.current,
         )
         if (!cancelled) setDestinationSuggestions(rows)
@@ -158,17 +175,15 @@ function TripPlannerPage() {
       cancelled = true
       clearTimeout(tid)
     }
-  }, [activeDestinationQuery, destinationKind, activeDestinationField])
+  }, [activeDestinationQuery, activePlacesKind, activeDestinationField])
 
   useEffect(() => {
     if (!showDestinationList) return
     function handlePointerDown(e) {
-      if (
-        destinationComboboxRef.current &&
-        !destinationComboboxRef.current.contains(e.target)
-      ) {
-        setActiveDestinationField(null)
-      }
+      const t = e.target
+      const inDest = destinationComboboxRef.current?.contains(t)
+      const inOrigin = originComboboxRef.current?.contains(t)
+      if (!inDest && !inOrigin) setActiveDestinationField(null)
     }
     document.addEventListener('pointerdown', handlePointerDown, true)
     return () => {
@@ -240,9 +255,16 @@ function TripPlannerPage() {
 
   function updateField(name, value) {
     setForm((prev) => ({ ...prev, [name]: value }))
-    if (name === 'location' || name === 'destinationKind')
+    if (
+      name === 'location' ||
+      name === 'destinationKind' ||
+      name === 'travellingFrom'
+    )
       setDestinationListDismissed(false)
     if (name === 'location' && !String(value).trim()) {
+      placesSessionRef.current = null
+    }
+    if (name === 'travellingFrom' && !String(value).trim()) {
       placesSessionRef.current = null
     }
     setFormError('')
@@ -301,6 +323,9 @@ function TripPlannerPage() {
     setDestinationListDismissed(true)
     if (!targetField) return
     setForm((prev) => {
+      if (targetField.type === 'origin') {
+        return { ...prev, travellingFrom: value }
+      }
       if (targetField.type === 'primary') {
         return { ...prev, location: value }
       }
@@ -310,6 +335,7 @@ function TripPlannerPage() {
     })
     setFormError('')
     if (targetField.type === 'primary') locationInputRef.current?.focus()
+    if (targetField.type === 'origin') originInputRef.current?.focus()
   }
 
   function onDestinationKeyDown(e, targetField) {
@@ -357,7 +383,9 @@ function TripPlannerPage() {
       return
     }
     const priceMode = form.priceMode === 'total' ? 'total' : 'perPerson'
+    const travellingFrom = form.travellingFrom.trim()
     const planVariables = {
+      travellingFrom,
       destinations: {
         primary: location,
         extras: extraLocations,
@@ -388,6 +416,7 @@ function TripPlannerPage() {
       id: crypto.randomUUID(),
       location: allLocations.join(' • '),
       locations: allLocations,
+      travellingFrom,
       destinationKind: planVariables.destinations.kind,
       startDate: form.startDate,
       endDate: form.endDate,
@@ -432,12 +461,96 @@ function TripPlannerPage() {
             <span className="trip-theme-thumb" aria-hidden />
           </button>
         </div>
-        <div className="trip-panel">
-          <form className="trip-form" onSubmit={handleSubmit} noValidate>
-          <div
-            className="trip-field trip-dest-combobox"
-            ref={destinationComboboxRef}
-          >
+        <form className="trip-form-stack" onSubmit={handleSubmit} noValidate>
+          <div className="trip-panel">
+            <div
+              className="trip-field trip-dest-combobox trip-dest-combobox--inline-list"
+              ref={originComboboxRef}
+            >
+              <label htmlFor="travellingFrom">Travelling from</label>
+              <div className="trip-dest-input-wrap">
+                <input
+                  ref={originInputRef}
+                  id="travellingFrom"
+                  name="travellingFrom"
+                  type="text"
+                  autoComplete="off"
+                  placeholder="e.g. Cleveland, OH"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={
+                    showDestinationList &&
+                    isSameDestinationField(activeDestinationField, {
+                      type: 'origin',
+                    })
+                  }
+                  aria-controls="destination-listbox-origin"
+                  aria-activedescendant={
+                    showDestinationList &&
+                    isSameDestinationField(activeDestinationField, {
+                      type: 'origin',
+                    })
+                      ? `destination-opt-origin-${destinationActiveIndex}`
+                      : undefined
+                  }
+                  value={form.travellingFrom}
+                  onChange={(e) => {
+                    setDestinationAutocompleteError('')
+                    updateField('travellingFrom', e.target.value)
+                  }}
+                  onFocus={() => setActiveDestinationField({ type: 'origin' })}
+                  onKeyDown={(e) => onDestinationKeyDown(e, { type: 'origin' })}
+                />
+                {showDestinationList &&
+                isSameDestinationField(activeDestinationField, {
+                  type: 'origin',
+                }) ? (
+                  <ul
+                    id="destination-listbox-origin"
+                    className="trip-dest-list"
+                    role="listbox"
+                  >
+                    {destinationSuggestions.map((row, index) => (
+                      <li
+                        key={row.placeId || `origin-${index}-${row.text}`}
+                        role="presentation"
+                      >
+                        <button
+                          type="button"
+                          id={`destination-opt-origin-${index}`}
+                          role="option"
+                          aria-selected={index === destinationActiveIndex}
+                          className={
+                            index === destinationActiveIndex
+                              ? 'trip-dest-option trip-dest-option-active'
+                              : 'trip-dest-option'
+                          }
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() =>
+                            pickDestination(row.text, { type: 'origin' })
+                          }
+                        >
+                          {row.text}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+              {activeDestinationField?.type === 'origin' &&
+              destinationAutocompleteError ? (
+                <p className="trip-form-error" role="status">
+                  {destinationAutocompleteError}
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="trip-panel">
+            <div
+              className="trip-field trip-dest-combobox trip-dest-combobox--inline-list"
+              ref={destinationComboboxRef}
+            >
             <div className="trip-dest-header-row">
               <label className="trip-dest-label" htmlFor="location">
                 Destination
@@ -561,11 +674,6 @@ function TripPlannerPage() {
                 </ul>
               ) : null}
             </div>
-            {destinationAutocompleteError ? (
-              <p className="trip-form-error" role="status">
-                {destinationAutocompleteError}
-              </p>
-            ) : null}
             {form.extraLocations.map((loc, idx) => (
               <div className="trip-extra-destination-row" key={`extra-${idx}`}>
                 <div className="trip-extra-destination-input-wrap">
@@ -658,10 +766,17 @@ function TripPlannerPage() {
                 </button>
               </div>
             ))}
+            {activeDestinationField?.type !== 'origin' &&
+            destinationAutocompleteError ? (
+              <p className="trip-form-error" role="status">
+                {destinationAutocompleteError}
+              </p>
+            ) : null}
+          </div>
           </div>
 
           {hasDestination ? (
-            <>
+            <div className="trip-panel">
               <div
                 className={
                   openDatePicker ? 'trip-row trip-row-calendar-open' : 'trip-row'
@@ -725,10 +840,11 @@ function TripPlannerPage() {
                 />
                 <label htmlFor="dateLenient">I’m flexible with these dates</label>
               </div>
-            </>
+            </div>
           ) : null}
 
           {hasDates ? (
+            <div className="trip-panel">
             <div className="trip-budget-row">
               <div className="trip-field trip-budget-field">
                 <label htmlFor="price" className="trip-price-label">
@@ -800,6 +916,7 @@ function TripPlannerPage() {
                 ) : null}
               </div>
             </div>
+            </div>
           ) : null}
 
           {hasPrice && formError ? (
@@ -814,7 +931,6 @@ function TripPlannerPage() {
             </button>
           ) : null}
         </form>
-        </div>
       </section>
 
       {trips.length > 0 ? (
@@ -831,6 +947,11 @@ function TripPlannerPage() {
                         ? 'Landmark'
                         : 'City'}
                     </span>
+                    {trip.travellingFrom ? (
+                      <span className="trip-card-from">
+                        From {trip.travellingFrom}
+                      </span>
+                    ) : null}
                     <span className="trip-card-dates">
                       {formatDateRange(trip.startDate, trip.endDate)}
                       {trip.dateLenient ? (
@@ -1068,6 +1189,7 @@ function isSameDestinationField(a, b) {
 
 function getActiveDestinationQuery(activeField, form) {
   if (!activeField) return ''
+  if (activeField.type === 'origin') return form.travellingFrom.trim()
   if (activeField.type === 'primary') return form.location.trim()
   return (form.extraLocations[activeField.index] ?? '').trim()
 }
