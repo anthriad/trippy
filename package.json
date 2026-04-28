@@ -1,12 +1,22 @@
 {
   "type": "module",
   "scripts": {
-    "start": "node googleapi.js"
+    "start": "node googleapi.js",
+    "api": "node backend/server.js",
+    "agent": "node gemini-agent/agent.js",
+    "web": "npm run dev --prefix web",
+    "web:build": "npm run build --prefix web",
+    "dev": "concurrently -k -n api,web -c magenta,cyan \"npm run api\" \"npm run dev --prefix web\""
   },
   "dependencies": {
     "@google/genai": "^1.46.0",
     "@langchain/core": "^1.1.36",
     "@langchain/google": "^0.1.8",
-    "dotenv": "^17.3.1"
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }
