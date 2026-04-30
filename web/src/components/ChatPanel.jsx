@@ -109,13 +109,9 @@ export default function ChatPanel({
   disabled,
   statusText,
   headerAction = null,
-  /** e.g. missing GEMINI_API_KEY — shown under the tagline */
   configWarning,
-  /** Main heading (e.g. "Trippy") */
   title = 'Trippy',
-  /** One line under the title, e.g. "AI travel agent" */
   tagline = 'AI travel agent',
-  /** Shown when there are no messages yet */
   emptyHint = 'Ask Trippy to refine the plan, swap activities, or explain options for this trip.',
 }) {
   const [draft, setDraft] = useState('')
@@ -126,7 +122,6 @@ export default function ChatPanel({
   }, [messages])
 
   useEffect(() => {
-    // Keep the newest message in view.
     const el = listRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight

@@ -1,9 +1,5 @@
 let loaderPromise = null
 
-/**
- * Loads the Maps JS API once (Places is loaded via importLibrary('places')).
- * @param {string} apiKey
- */
 export function ensureMapsLoaded(apiKey) {
   if (!apiKey?.trim()) {
     return Promise.reject(new Error('Missing Google Maps API key'))
@@ -45,8 +41,6 @@ export function ensureMapsLoaded(apiKey) {
           key: apiKey.trim(),
           v: 'weekly',
           libraries: 'places',
-          // loading=async is Google's recommended way to load the JS API.
-          // It also reduces the chance of race conditions around importLibrary.
           loading: 'async',
           callback: callbackName,
         }).toString()
@@ -57,7 +51,6 @@ export function ensureMapsLoaded(apiKey) {
   return loaderPromise
 }
 
-/** @param {'city' | 'landmark'} kind */
 export function primaryTypesForDestinationKind(kind) {
   if (kind === 'landmark') {
     return ['tourist_attraction', 'museum', 'park', 'point_of_interest']
@@ -65,11 +58,6 @@ export function primaryTypesForDestinationKind(kind) {
   return ['locality', 'administrative_area_level_1']
 }
 
-/**
- * @param {string} input
- * @param {'city' | 'landmark'} kind
- * @param {unknown} sessionToken  AutocompleteSessionToken from Maps JS Places library
- */
 export async function fetchPlaceSuggestions(input, kind, sessionToken) {
   const apiKey = import.meta.env.VITE_GOOGLE_PLACES_API_KEY
   if (!apiKey?.trim()) {
@@ -81,9 +69,6 @@ export async function fetchPlaceSuggestions(input, kind, sessionToken) {
   if (!q || q.length < 2) return []
 
   await ensureMapsLoaded(apiKey)
-  // We prefer the new Places AutocompleteSuggestion API when available.
-  // Some Maps JS versions / accounts may not expose it; in that case we fall back
-  // to the classic AutocompleteService so the UX still works.
   const placesLib = await google.maps.importLibrary('places')
   const AutocompleteSuggestion = placesLib?.AutocompleteSuggestion
 
@@ -115,8 +100,6 @@ export async function fetchPlaceSuggestions(input, kind, sessionToken) {
     return out
   }
 
-  // Fallback (classic Places AutocompleteService).
-  // Docs: https://developers.google.com/maps/documentation/javascript/place-autocomplete
   const service = new google.maps.places.AutocompleteService()
   const types = primaryTypesForDestinationKind(kind)
   const type =
@@ -138,8 +121,6 @@ export async function fetchPlaceSuggestions(input, kind, sessionToken) {
         language: lang,
       },
       (predictions, status) => {
-        // If the API key is invalid / billing disabled / Places API disabled,
-        // status will not be OK and predictions will be null/empty.
         if (status && status !== google.maps.places.PlacesServiceStatus.OK) {
           console.error('Trippy autocomplete status:', status)
         }

@@ -1,40 +1,13 @@
-/**
- * trippyApi.js — browser client for the Trippy Express API (backend/server.js).
- *
- * Flow:
- *   React → 5('/api/...') → Express → LangChain ChatGoogle → Gemini
- *
- * Development:
- *   From the repo root run `npm run dev` to start the API and Vite together, or run
- *   `npm run api` in one terminal and `npm run dev` inside web/ in another.
- *   vite.config.js proxies `/api` to the port in backend/.env (default 3001 in server.js).
- *
- * Production:
- *   Set VITE_API_URL to your deployed API origin (no trailing slash), e.g.
- *   https://api.example.com — requests become `${VITE_API_URL}/api/chat`.
- */
-
 /** @typedef {{ role: 'user' | 'assistant'; content: string }} WireMessage */
 
-/**
- * Base URL for API requests.
- * Empty string = same origin as the page (correct when using the Vite proxy
- * or when the static site and API share one host).
- */
 function apiOrigin() {
   return (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
 }
 
-/**
- * Full URL for an API path. `path` must start with `/`, e.g. `/api/health`.
- */
 function apiUrl(path) {
   return `${apiOrigin()}${path}`
 }
 
-/**
- * POST with static typing helper: read JSON body and throw on HTTP errors.
- */
 async function readJsonResponse(res) {
   const text = await res.text()
   /** @type {unknown} */
@@ -65,11 +38,6 @@ async function readJsonResponse(res) {
   return body
 }
 
-/**
- * GET /api/health — process up plus whether GEMINI_API_KEY is set (no Gemini call).
- *
- * @returns {Promise<{ up: boolean; geminiConfigured: boolean }>}
- */
 export async function fetchApiHealth() {
   try {
     const res = await fetch(apiUrl('/api/health'))
@@ -84,23 +52,11 @@ export async function fetchApiHealth() {
   }
 }
 
-/**
- * @returns {Promise<boolean>}
- */
 export async function checkApiHealth() {
   const h = await fetchApiHealth()
   return h.up
 }
 
-/**
- * POST /api/chat
- * Sends the full conversation as JSON messages; last entry must be role "user".
- * Returns the assistant message object from Express: { role, content }.
- *
- * @param {WireMessage[]} messages
- * @param {{ signal?: AbortSignal }} [options]
- * @returns {Promise<{ role: string; content: string }>}
- */
 export async function sendChat(messages, options = {}) {
   const { signal } = options
   const res = await fetch(apiUrl('/api/chat'), {
@@ -121,19 +77,6 @@ export async function sendChat(messages, options = {}) {
   return data.message
 }
 
-/**
- * POST /api/chat/stream
- * Server-Sent Events: each line `data: {"text":"..."}` until `data: [DONE]`.
- * Optional `error` field in a data payload is treated as fatal.
- *
- * @param {WireMessage[]} messages
- * @param {{
- *   signal?: AbortSignal
- *   onTextChunk?: (text: string) => void
- *   onComplete?: () => void
- *   onError?: (err: Error) => void
- * }} [handlers]
- */
 export async function streamChat(messages, handlers = {}) {
   const { signal, onTextChunk, onComplete, onError } = handlers
   const res = await fetch(apiUrl('/api/chat/stream'), {
@@ -149,7 +92,6 @@ export async function streamChat(messages, handlers = {}) {
       const errBody = await res.json()
       if (errBody?.error) msg = errBody.error
     } catch {
-      /* ignore */
     }
     if (!msg && [502, 503, 504].includes(res.status)) {
       msg =
@@ -194,7 +136,6 @@ export async function streamChat(messages, handlers = {}) {
           }
           if (typeof data?.text === 'string' && data.text) onTextChunk?.(data.text)
         } catch {
-          /* skip malformed SSE line */
         }
       }
     }
@@ -204,12 +145,6 @@ export async function streamChat(messages, handlers = {}) {
   onComplete?.()
 }
 
-/**
- * Maps persisted chat bubbles (id, timestamp, …) to the wire format the backend validates.
- *
- * @param {Array<{ role?: string; content?: unknown }> | undefined | null} chatMessages
- * @returns {WireMessage[]}
- */
 export function toWireMessages(chatMessages) {
   if (!Array.isArray(chatMessages)) return []
   return chatMessages
@@ -225,13 +160,6 @@ export function toWireMessages(chatMessages) {
     }))
 }
 
-/**
- * Turns the planner form (`planVariables` / `trip.payload`) into a clear natural-language
- * brief so Gemini gets destination, dates, flexibility, and budget before the raw JSON.
- *
- * @param {object} tripPayload — shape from App.jsx `planVariables`
- * @returns {string[]}
- */
 export function buildPlannerSummaryLines(tripPayload) {
   if (!tripPayload || typeof tripPayload !== 'object') {
     return ['(No planner details were provided.)']
@@ -288,18 +216,6 @@ export function buildPlannerSummaryLines(tripPayload) {
   return lines
 }
 
-/**
- * First Gemini turn after the user saves the planner ("Plan trip") and lands on the trip page.
- * Combines:
- *   1) A human-readable summary (destination, dates, flexible vs fixed, budget)
- *   2) The full structured JSON from the form (same as before)
- *   3) Instructions to respond as Trippy and return a fenced itinerary JSON when possible
- *
- * `tripBackendClient.subscribeToTripUpdates` sends this as the opening `user` message so
- * the itinerary panel can fill before the user chats further.
- *
- * @param {object} tripPayload — shape from App.jsx `planVariables`
- */
 export function buildInitialTripUserMessage(tripPayload) {
   const summaryBlock = buildPlannerSummaryLines(tripPayload).join('\n')
 
@@ -323,13 +239,6 @@ export function buildInitialTripUserMessage(tripPayload) {
   ].join('\n')
 }
 
-/**
- * Looks for ```json ... ``` fences in the model reply and parses the first object with `days[]`.
- * Tries every fence so prose-before-itinerary still works.
- *
- * @param {string} assistantText
- * @returns {{ days: unknown[] } | null}
- */
 export function tryExtractItineraryJson(assistantText) {
   const re = /```(?:json)?\s*([\s\S]*?)```/gi
   let m
@@ -338,7 +247,6 @@ export function tryExtractItineraryJson(assistantText) {
       const obj = JSON.parse(m[1].trim())
       if (obj && typeof obj === 'object' && Array.isArray(obj.days)) return obj
     } catch {
-      /* try next fence */
     }
   }
   return null

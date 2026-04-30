@@ -9,11 +9,9 @@ import { buildInitialTripUserMessage } from './api/trippyApi.js'
 import { useTripsStore } from './state/tripsContext.js'
 import TripResultsPage from './pages/TripResultsPage.jsx'
 
-/** Replace with your real budget explanation when ready. */
 const BUDGET_DETAILS_PLACEHOLDER =
   'More information about how this budget is used will appear here.'
 
-/** Default until the user explicitly chooses Landmark. */
 const DESTINATION_KIND_DEFAULT = 'city'
 const MAX_DESTINATIONS = 10
 
@@ -144,9 +142,6 @@ function TripPlannerPage() {
         setDestinationAutocompleteError('')
         await ensureMapsLoaded(apiKey)
         if (cancelled) return
-        // Session tokens are optional but recommended by Google so related
-        // autocomplete requests are grouped/billed efficiently.
-        // We support both the new importLibrary API and the classic namespace.
         if (!placesSessionRef.current) {
           const placesLib = await google.maps.importLibrary('places')
           const TokenCtor =
@@ -228,7 +223,6 @@ function TripPlannerPage() {
   }, [hasDates, budgetMenuOpen])
 
   useEffect(() => {
-    // Keep the step-by-step flow: if destination is cleared, reset the rest.
     if (hasDestination) return
     if (
       form.startDate ||
@@ -248,7 +242,6 @@ function TripPlannerPage() {
   }, [hasDestination])
 
   useEffect(() => {
-    // If dates are incomplete, the budget step should not be shown.
     if (hasDates) return
     if (form.price !== '') setForm((prev) => ({ ...prev, price: '' }))
   }, [hasDates, form.price])

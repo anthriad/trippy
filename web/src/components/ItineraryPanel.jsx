@@ -1,7 +1,6 @@
 function renderItinerary(itinerary) {
   if (!itinerary) return null
 
-  // Common shape: { days: [{ date, label, items: [{ time, title, description, location }] }] }
   if (Array.isArray(itinerary.days)) {
     return (
       <div className="trip-results-itinerary-days">
@@ -62,13 +61,10 @@ function renderHighlightedDestination(label) {
 
 export default function ItineraryPanel({
   itinerary,
-  /** True when showing a client-built outline before Trippy returns structured JSON */
   isSkeletonDraft = false,
   meta,
   headerAction = null,
-  /** Primary label for this saved trip (e.g. city or combined destinations) */
   destinationLabel,
-  /** Optional date range text */
   datesSummary,
 }) {
   return (
