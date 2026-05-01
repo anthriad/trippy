@@ -9,7 +9,7 @@
 
 ## 🚀 Overview
 
-Trippy (codenamed **Atlas**) is built to solve "planning fatigue." Unlike static search engines, Trippy acts as a digital concierge that understands context, preferences, and constraints to build personalized travel experiences.
+Trippy is built to solve "planning fatigue." Unlike static search engines, Trippy acts as a digital concierge that understands context, preferences, and constraints to build personalized travel experiences.
 
 ### Key Capabilities
 * **Agentic Orchestration:** Uses LLM reasoning to process travel requests and determine necessary actions.
